@@ -1,5 +1,7 @@
 import tools
-import ollama
+from ollama import Client, ChatResponse
+import asyncio
+from output import log, output
 
 background_content_messages = [
    {"role": "system", "content": "You are a physical robot companion. You can talk to your human best friend and move "
@@ -16,6 +18,8 @@ class Llm:
    def __init__(self):
       self.messages = background_content_messages
       self.tool_definitions = tools.get_tool_definitions()
+      self.active_query = False
+      self.queued_query = False
 
    def new_message(self, content: str, role: str ='user'):
       # TODO: Only maintain a given number of messages
@@ -28,12 +32,24 @@ class Llm:
       if current_message:
          self.new_message(current_message)
 
-      print('messages', self.messages)
+      # If there is an active query, set the queue
+      if self.active_query:
+         self.queued_query = True
+      # Otherwise start it
+      else:
+         self.active_query = True
+         asyncio.create_task(self._execute_chat())
 
-      chat_response = ollama.chat(
+   async def _execute_chat(self):
+      log('messages', self.messages)
+
+      # TODO - add support for local network servers
+      client = Client('http://localhost:11434')
+      chat_response: ChatResponse = client.chat(
          model='gemma4:latest',
          messages=self.messages,
-         tools=self.tool_definitions
+         tools=self.tool_definitions,
+         stream=False,
       )
 
       # responses will either be a tool call or a conversational response.
@@ -43,8 +59,17 @@ class Llm:
             self.new_message(call_result, "tool")
 
          # for tool calls, keep calling until you get a chat response
-         return self.chat()
+         return await self._execute_chat()
 
       else:
          self.new_message(chat_response.message.content, "agent")
+
+         self.active_query = self.queued_query
+         self.queued_query = False
+         if self.active_query:
+            asyncio.create_task(self._execute_chat())
+
+         output(chat_response.message.content)
          return chat_response.message
+
+

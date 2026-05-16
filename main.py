@@ -1,12 +1,13 @@
 from llm import Llm
+import asyncio
+from aioconsole import ainput
 
+async def main():
+   llm = Llm()
+   llm.chat()
 
-llm = Llm()
-init_message = llm.chat()
-print(init_message.content)
+   while True:
+      new_message = await ainput("")
+      llm.chat(new_message)
 
-while True:
-   new_message = input("---")
-   response = llm.chat(new_message)
-   print(response.content)
-
+asyncio.run(main())
