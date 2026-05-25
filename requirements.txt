@@ -2,3 +2,5 @@ colorama
 ollama
 aioconsole
 pymongo
+pillow
+numpy

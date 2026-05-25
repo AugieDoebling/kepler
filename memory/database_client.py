@@ -3,6 +3,7 @@ import certifi
 from bson.objectid import ObjectId
 
 # TODO move to config
+uri = "mongodb+srv://kepler:beepboop@keplercluster.4lza2qk.mongodb.net/?appName=KeplerCluster"
 client = MongoClient(uri, tlsCAFile=certifi.where())
 
 def get_msg_scores(word):
