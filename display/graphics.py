@@ -5,6 +5,12 @@ import math
 RESOLUTION = (240, 284)
 CENTER = (round(RESOLUTION[0] / 2), round(RESOLUTION[1] / 2))
 
+DEBUG_LOGGING = False
+
+def debug(*args, **kwargs):
+   if DEBUG_LOGGING:
+      print(*args, **kwargs)
+
 def get_bounding_box(tl_point: tuple, size: tuple):
    return (
       round(tl_point[0]),
@@ -32,7 +38,7 @@ def get_centered_bounding_box(size: tuple):
 def get_radial_point(angle: int, radius: float):
    x_offset = round(math.cos(math.radians(angle)) * radius)
    y_offset = round(math.sin(math.radians(angle)) * radius)
-   print('x_offset', x_offset, 'y_offset', y_offset)
+   debug('x_offset', x_offset, 'y_offset', y_offset)
 
    return CENTER[0] + x_offset, CENTER[1] + y_offset
 
@@ -91,54 +97,47 @@ def draw_planet_orbit(draw, ring_diameter: int, planet_angle: int, planet_size: 
    draw.ellipse(ring_box, outline='#251A39', width=1)
 
    planet_center = get_radial_point(planet_angle, ring_diameter / 2)
-   print(planet_center)
+   debug(planet_center)
    planet_box = get_surrounding_bounding_box(planet_center, (planet_size, planet_size))
-   print('planet box', planet_box)
+   debug('planet box', planet_box)
    draw.ellipse(planet_box, fill=planet_color)
 
 
 def draw_rounded_arc(draw, diameter: int, width: int, start_angle: int, end_angle: int, color: str):
    loading_box = get_centered_bounding_box((diameter, diameter))
-   print('loading box', loading_box)
+   debug('loading box', loading_box)
    draw.arc(loading_box, start_angle, end_angle, color, width)
 
-   print('ledge point', diameter / 2 - width / 2)
+   debug('ledge point', diameter / 2 - width / 2)
    arc_center_radius = round(diameter / 2 - width / 2)
    edge_circle_width = (width - 2, width - 2)
 
    start_edge_center = get_radial_point(start_angle, arc_center_radius)
    start_edge_box = get_surrounding_bounding_box(start_edge_center, edge_circle_width)
-   print('start_edge box', start_edge_box)
+   debug('start_edge box', start_edge_box)
    draw.ellipse(start_edge_box, fill=color)
 
    end_edge_center = get_radial_point(end_angle, arc_center_radius)
    end_edge_box = get_surrounding_bounding_box(end_edge_center, edge_circle_width)
-   print('end_edge box', end_edge_box)
+   debug('end_edge box', end_edge_box)
    draw.ellipse(end_edge_box, fill=color)
 
-def draw_loader(draw, radius: int, width: int, rotation_angle: int, trans_in: bool, trans_out: bool):
-   seg_1_length = 160
-   seg_2_length = 60
-   seg_3_length = 25
-   buffer = 20
+def draw_loader(draw, radius: int, width: int, segments: list[int], buffer: int, rotation_angle: int, trans_in: bool, trans_out: bool, trans_out_roller: float):
+   arc_colors = ['#9C27B0', '#7B1FA2', '#4A148C']
+   seg_start = rotation_angle
 
-   seg_1_start = rotation_angle
-   seg_1_end = rotation_angle - seg_1_length
-   seg_2_start = seg_1_end - buffer
-   seg_2_end = seg_2_start - seg_2_length
-   seg_3_start = seg_2_end - buffer
-   seg_3_end = seg_3_start - seg_3_length
-
-   draw_rounded_arc(draw, radius*2, width, seg_1_end, seg_1_start, '#9C27B0')
-   draw_rounded_arc(draw, radius*2, width, seg_2_end, seg_2_start, '#7B1FA2')
-   draw_rounded_arc(draw, radius*2, width, seg_3_end, seg_3_start, '#4A148C')
+   for seg_index, seg_length in enumerate(segments):
+      seg_end = seg_start - seg_length
+      color = min(seg_index, len(arc_colors) - 1)
+      draw_rounded_arc(draw, radius*2, width, seg_end, seg_start, arc_colors[color])
+      seg_start = seg_end - buffer
 
    if trans_in:
       loading_box = get_centered_bounding_box((radius*2, radius*2))
       draw.pieslice(loading_box, rotation_angle + 10, 0, fill='black')
    elif trans_out:
       loading_box = get_centered_bounding_box((radius*2, radius*2))
-      draw.pieslice(loading_box, 0, rotation_angle + 10, fill='black')
+      draw.pieslice(loading_box, 0, round(trans_out_roller), fill='black')
 
 def new_frame():
    base_image = Image.new('RGB', RESOLUTION, 'black')
@@ -158,4 +157,5 @@ def test_graphics():
 
 
 if __name__ == "__main__":
-    test_graphics()
+   DEBUG_LOGGING = True
+   test_graphics()
