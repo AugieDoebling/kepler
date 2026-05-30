@@ -4,3 +4,6 @@ aioconsole
 pymongo
 pillow
 numpy
+#rpi-lgpio
+#adafruit-blinka
+#adafruit-circuitpython-rgb-display

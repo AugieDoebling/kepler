@@ -22,7 +22,6 @@ def render_planet_eye(planet_eye_state: PlanetEyeState):
    FRAME_BUFFER.append(base_image)
 
 def display_main():
-
    current_state = PlanetEyeState()
    last_frame_render_time = time.perf_counter()
 

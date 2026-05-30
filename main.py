@@ -1,13 +1,13 @@
-from llm import Llm
-import asyncio
-from aioconsole import ainput
+from display import display_thread
+from display.display_state import DisplayState
 
-async def main():
-   llm = Llm()
-   llm.chat()
+def main():
+    display_state = DisplayState()
+    
+    display_thread.start_thread(display_state)
 
-   while True:
-      new_message = await ainput("")
-      llm.chat(new_message)
 
-asyncio.run(main())
+if __name__ == "__main__":
+    main()
+
+
