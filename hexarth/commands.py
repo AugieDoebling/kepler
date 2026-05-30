@@ -23,6 +23,9 @@ def move(forward_speed: int, left_speed: int, counterclockwise_rotation_speed: i
       "Yaw": (counterclockwise_rotation_speed / 100) * max_rot,
    }
 
+def stop():
+   return move(0, 0, 0)
+
 def pose_angle_rotation(x_amp: int, y_amp: int, z_amp: int, frequency: int):
    # TODO: validation assertions
    max_amp = 0.3
