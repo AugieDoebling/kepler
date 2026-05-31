@@ -1,3 +1,4 @@
+import logging
 import time
 import threading
 from display_state import DisplayState
@@ -15,6 +16,8 @@ def start_thread(display_state: DisplayState):
 
 
 def loop(display_state: DisplayState):
+    logging.info("Starting display thread")
+    
     scenario = PlanetEyeScenario()
     last_frame_render_time = time.perf_counter()
 

@@ -1,3 +1,4 @@
+import logging
 import time
 import threading
 from hexarth_state import HexarthState
@@ -15,6 +16,8 @@ def start_thread(hexarth_state: HexarthState):
 
 
 def loop(hexarth_state: HexarthState):
+    logging.info("Starting hexarth thread")
+
     last_update_time = time.perf_counter()
     hexbot = HexBot(hexarth_state)
 
