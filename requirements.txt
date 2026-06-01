@@ -1,6 +1,7 @@
-colorama
-ollama
 aioconsole
+colorama
+google-cloud-texttospeech
+ollama
 pymongo
 pillow
 numpy

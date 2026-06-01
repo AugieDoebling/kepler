@@ -1,4 +1,3 @@
-from asyncio import selector_events
 import threading
 
 class HexarthState:
