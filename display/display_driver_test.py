@@ -2,6 +2,8 @@ import time
 import busio
 import board
 import digitalio
+from planet_scenario import PlanetEyeScenario
+from display_state import DisplayState
 from adafruit_rgb_display import st7789
 from PIL import Image, ImageDraw, ImageFont
 
@@ -9,44 +11,58 @@ from PIL import Image, ImageDraw, ImageFont
 spi = busio.SPI(clock=board.SCK, MOSI=board.MOSI, MISO=board.MISO)
 cs_pin = digitalio.DigitalInOut(board.D5)
 dc_pin = digitalio.DigitalInOut(board.D24)
-reset_pin = digitalio.DigitalInOut(board.D27)
+reset_pin = digitalio.DigitalInOut(board.D26)
 
-# # --- NEW: MANUALLY REBOOT THE SCREEN AND WAIT ---
-# # Force the reset pin low to reboot the screen, then high to wake it up
-# reset_pin.switch_to_output(value=False)
-# time.sleep(0.1) # Hold reset for 100ms
-# reset_pin.value = True
-# time.sleep(0.5) # Give the screen half a second to fully boot up!
+# --- NEW: MANUALLY REBOOT THE SCREEN AND WAIT ---
+# Force the reset pin low to reboot the screen, then high to wake it up
+reset_pin.switch_to_output(value=False)
+time.sleep(1) # Hold reset for 100ms
+reset_pin.value = True
+time.sleep(1) # Give the screen half a second to fully boot up!
 # ------------------------------------------------
 
 # 2. Configure display parameters
-BAUDRATE = 24000000
+BAUDRATE = 16_000_000
 display = st7789.ST7789(
     spi, cs=cs_pin, dc=dc_pin, rst=reset_pin,
-    baudrate=BAUDRATE, width=240, height=284, x_offset=0, y_offset=40
+    baudrate=BAUDRATE, width=240, height=284, x_offset=0, y_offset=36
 )
 
-# 3. Create a Pillow Image Buffer
-image = Image.new("RGB", (display.width, display.height))
-draw = ImageDraw.Draw(image)
+update_time = time.perf_counter()
+tenth_frame = time.perf_counter()
 
-# 4. Draw graphics
-draw.rectangle((0, 0, display.width, display.height), outline=0, fill=(0, 0, 0)) # Clear screen to black
-# draw.rectangle((1, 1, 239, 283), outline=(255, 0, 0), fill=(0, 0, 255)) # Draw blue rect with red border
+planets = PlanetEyeScenario()
+state = DisplayState()
 
-draw.rectangle((10, 10, 20, 20), outline=0, fill=(255, 0, 0))
-draw.rectangle((220, 254, 230, 264), outline=0, fill=(0, 255, 0))
-draw.rectangle((10, 254, 20, 264), outline=0, fill=(0, 0, 255))
-draw.rectangle((220, 10, 230, 20), outline=0, fill=(255, 255, 255))
-
-draw.rectangle((110, 130, 132, 152), outline=0, fill=(255, 255, 0))
+for frame in range(500):
 
 
+    if frame == 50:
+        state.set_attention(True)
+    if frame == 150:
+        state.set_attention(False)
 
 
-# # # Draw some text
-draw.text((30, 100), "Hello, SPI Display!", fill=(255, 255, 255))
+    img_creation_time = time.perf_counter()
+    
+    planets.update(state, img_creation_time-update_time)
+    image = planets.get_frame()
+    update_time = img_creation_time
 
-# 5. Push the image to the screen
-display.image(image)
-time.sleep(5)
+    img_finish_time = time.perf_counter()
+
+    # 5. Push the image to the screen
+    display.image(image)
+
+    display_write_time = time.perf_counter()
+    last_frame_time = display_write_time
+
+    print(f'   frame {frame} - render {img_finish_time-img_creation_time:.2f}, write {display_write_time-img_finish_time:.2f}, total {display_write_time-img_creation_time:.2f}')
+
+    if frame % 10 == 0:
+        now = time.perf_counter()
+        elapsed = now - tenth_frame
+        tenth_frame = now
+
+        frame_speed = elapsed / 10
+        print(f'10 frames in {elapsed:.2f}, avg {frame_speed:.2f}, fps {1/frame_speed:.2f}')

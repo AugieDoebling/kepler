@@ -1,6 +1,7 @@
 from importlib import _bootstrap_external
 from display_state import DisplayState
 import graphics
+import logging
 
 def calc_degrees_progressed(seconds_elapsed: float, rpm_speed: float):
    minutes_elapsed = seconds_elapsed / 60
@@ -17,6 +18,7 @@ class PlanetEyeScenario:
       self.loader = Loader()
 
    def update(self, display_state: DisplayState, seconds_elapsed: float):
+      logging.debug(f"Updating planet eye after {seconds_elapsed:0.2f} seconds")
       for planet in self.planets:
          planet.update(seconds_elapsed)
       self.loader.update(seconds_elapsed)
@@ -102,7 +104,7 @@ class Planet:
          return
       else:
          degrees_progressed = calc_degrees_progressed(seconds_elapsed, self.rpm_speed)
-         # print('updating planet position', self.rpm_speed, self.position, seconds_elapsed, degrees_progressed)
+         # print(f'updating planet position {self.rpm_speed:0.2f}, {self.position:0.2f}, {seconds_elapsed:0.2f}, {degrees_progressed:0.2f}')
          self.position += degrees_progressed
 
 
