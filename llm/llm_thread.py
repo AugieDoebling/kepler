@@ -1,5 +1,3 @@
-from click import shell_completion
-from pydantic import annotated_handlers
 import logging
 import time
 import threading
@@ -44,8 +42,6 @@ def loop(actions: Actions, llmState: LlmState):
                 print('tool call - ', tool_call.function.name)
                 action_outcome = actions.call_action(tool_call)
                 logging.debug('action outcome - %s', action_outcome)
-
-                llmState.add_message(Message(role="tool", content=))
 
                 if action_outcome is not None:
                     llmState.add_message_content("tool", str(action_outcome), True)

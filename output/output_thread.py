@@ -1,4 +1,4 @@
-from output_state import OutputState
+from output.output_state import OutputState
 import logging
 import time
 import threading
