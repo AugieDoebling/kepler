@@ -1,6 +1,6 @@
 import logging
 from hexarth import commands
-from hexarth_state import HexarthState
+from hexarth.hexarth_state import HexarthState
 import time
 
 class HexBot:

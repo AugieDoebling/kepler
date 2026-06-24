@@ -6,6 +6,13 @@ class HexarthState:
         self.queued_actions = []
 
     def queue_action(self, command: str, args: dict, duration_ms: int):
+        """
+        Queue an action for the robot.
+        
+        :param command: The name of the command to queue.
+        :param args: The arguments for the command.
+        :param duration_ms: The duration of the command in milliseconds.
+        """
         with self._lock:
             self.queued_actions.append({"command": command, "args": args, "duration_ms": duration_ms})
         

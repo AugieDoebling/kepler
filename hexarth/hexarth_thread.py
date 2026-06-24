@@ -1,8 +1,8 @@
 import logging
 import time
 import threading
-from hexarth_state import HexarthState
-from hex_bot import HexBot
+from hexarth.hexarth_state import HexarthState
+from hexarth.hex_bot import HexBot
 
 UPDATE_HTZ = 1
 UPDATE_INTERVAL = 1.0 / UPDATE_HTZ

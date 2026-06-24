@@ -1,8 +1,8 @@
 import logging
 import time
 import threading
-from display_state import DisplayState
-from planet_scenario import PlanetEyeScenario
+from display.display_state import DisplayState
+from display.planet_scenario import PlanetEyeScenario
 
 FRAME_RATE = 30
 FRAME_INTERVAL = 1.0 / FRAME_RATE

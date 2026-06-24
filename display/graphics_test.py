@@ -1,13 +1,14 @@
 import time
-import graphics
-from display_state import PlanetEyeState
+from display import graphics
+from display.planet_scenario import PlanetEyeScenario
+from display.display_state import DisplayState
 
 FRAME_RATE = 30
 FRAME_INTERVAL = 1.0 / FRAME_RATE
 
 FRAME_BUFFER = []
 
-def render_planet_eye(planet_eye_state: PlanetEyeState):
+def render_planet_eye(planet_eye_state: PlanetEyeScenario):
    base_image, draw = graphics.new_frame()
 
    graphics.draw_eye(base_image, 35, 15, 160)
@@ -22,7 +23,8 @@ def render_planet_eye(planet_eye_state: PlanetEyeState):
    FRAME_BUFFER.append(base_image)
 
 def display_main():
-   current_state = PlanetEyeState()
+   current_scenario = PlanetEyeScenario()
+   current_state = DisplayState()
    last_frame_render_time = time.perf_counter()
 
    for frame_number in range(FRAME_RATE * 4):
@@ -33,8 +35,8 @@ def display_main():
       if frame_number == 60:
          current_state.set_attention(False)
 
-      current_state.update(time.perf_counter()-last_frame_render_time)
-      render_planet_eye(current_state)
+      current_scenario.update(current_state, time.perf_counter()-last_frame_render_time)
+      render_planet_eye(current_scenario)
 
       frame_generated_time = time.perf_counter()
       last_frame_render_time = frame_generated_time
@@ -45,7 +47,7 @@ def display_main():
       time.sleep(sleep_time)
 
    for frame_number, frame in enumerate(FRAME_BUFFER):
-      frame.save(f"test_outputs/frame_{frame_number:04d}.png")
+      frame.save(f"display/test_outputs/frame_{frame_number:04d}.png")
 
 
 if __name__ == "__main__":

@@ -2,8 +2,8 @@ import time
 import busio
 import board
 import digitalio
-from planet_scenario import PlanetEyeScenario
-from display_state import DisplayState
+from display.planet_scenario import PlanetEyeScenario
+from display.display_state import DisplayState
 from adafruit_rgb_display import st7789
 from PIL import Image, ImageDraw, ImageFont
 

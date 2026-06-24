@@ -2,3 +2,4 @@
 .idea
 /venv
 /display/test_outputs/
+/logs

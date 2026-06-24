@@ -1,6 +1,6 @@
 from importlib import _bootstrap_external
-from display_state import DisplayState
-import graphics
+from display.display_state import DisplayState
+from display import graphics
 import logging
 
 def calc_degrees_progressed(seconds_elapsed: float, rpm_speed: float):
