@@ -3,6 +3,13 @@
 def send_command(command):
    return
 
+def set_debug_print(value: bool):
+   """Whether the ESP32 echoes the commands it receives back over serial"""
+   return {
+      "T": 605,
+      "cmd": 1 if value else 0,
+   }
+
 # MOTION COMMANDS
 
 def go_to_initial_position():

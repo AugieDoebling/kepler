@@ -8,6 +8,7 @@ pymongo
 pillow
 numpy
 moonshine-voice
+pyserial
 #rpi-lgpio
 #adafruit-blinka
 #adafruit-circuitpython-rgb-display

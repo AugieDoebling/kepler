@@ -1,7 +1,13 @@
+import json
 import logging
 from hexarth import commands
 from hexarth.hexarth_state import HexarthState
 import time
+
+# The UART on GPIO14/15, wired to the ESP32 that drives the legs
+SERIAL_PORT = "/dev/ttyAMA0"
+SERIAL_BAUD = 115200
+SERIAL_WRITE_TIMEOUT_SECONDS = 1.0
 
 class HexBot:
     def __init__(self, hexarth_state: HexarthState, stationary_mode: bool = False):
@@ -9,21 +15,36 @@ class HexBot:
         self.stationary_mode = stationary_mode
         self.current_action = None
         self.current_action_start = time.perf_counter()
-    
+        self.serial = None
+        if not stationary_mode:
+            self.init_coms()
+
     def init_coms(self):
-        pass
-    
+        # Imported here so that pyserial is only needed when the robot is really driven
+        import serial
+
+        self.serial = serial.Serial(SERIAL_PORT, SERIAL_BAUD, write_timeout=SERIAL_WRITE_TIMEOUT_SECONDS)
+        # The ESP32 echoes every command back as text until it is told not to
+        self.send_command(commands.set_debug_print(False))
+
     def close_coms(self):
-        pass
+        if self.serial:
+            self.serial.close()
+            self.serial = None
 
     def send_command(self, command: dict):
+        if not command:
+            # An unknown command. Sent as it is, the ESP32 would read the missing "T" as 0, the emergency stop
+            return
+
         if self.stationary_mode:
             # Actions still run for their full duration, the command just never reaches the robot
             logging.info(f"Stationary mode, simulating command: {command}")
             return
 
         logging.debug(f"Sending command: {command}")
-        pass
+        # One JSON object per line is what the ESP32 reads
+        self.serial.write((json.dumps(command) + "\n").encode())
 
     def update(self):
         if self.current_action is not None:
@@ -31,6 +52,9 @@ class HexBot:
             if time_since_action_start > self.current_action["duration_ms"] / 1000:
                 logging.info(f"Completing current command: {self.current_action['command']}")
                 self.get_next_action()
+                if self.current_action is None:
+                    # Otherwise the robot carries on until the ESP32 has gone 3 seconds without a command
+                    self.send_command(commands.stop())
         else:
             self.get_next_action()
 

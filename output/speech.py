@@ -14,6 +14,7 @@ import base64
 import os
 from typing import Iterator
 from google import genai
+from google.genai import types
 
 DEFAULT_MODEL = "gemini-3.8-flash-lite-tts"
 DEFAULT_VOICE = "Finn"
@@ -25,6 +26,12 @@ CHANNELS = 1
 SAMPLE_WIDTH_BYTES = 2
 
 REQUEST_TIMEOUT_SECONDS = 30.0
+
+# Failures that get one more try. 429 is left out on purpose: when the quota is used up Gemini asks
+# for a wait of hours, and the SDK sleeps for as long as it is told to, inside the request. That left
+# the output thread stuck without an error, and the microphone muted for as long as it was "speaking".
+RETRY_ATTEMPTS = 1
+RETRY_STATUS_CODES = [408, 500, 502, 503, 504]
 
 # The prebuilt voices listed in Google's docs. Custom voice ids are also accepted by the API.
 PREBUILT_VOICES = {
@@ -53,7 +60,12 @@ class SpeechSynthesizer:
         self.model = model
         self.voice = voice
         self.style = style
-        self.client = genai.Client(api_key=api_key)
+        self.client = genai.Client(
+            api_key=api_key,
+            http_options=types.HttpOptions(retry_options=types.HttpRetryOptions(
+                attempts=RETRY_ATTEMPTS, http_status_codes=RETRY_STATUS_CODES,
+            )),
+        )
 
     @classmethod
     def from_config(cls, config: dict) -> "SpeechSynthesizer":
