@@ -8,7 +8,7 @@ repo root or from inside input/. Stop with Ctrl-C:
     python listen_test.py --partial                  # also show the text while it is being spoken
     python listen_test.py --wake-word ""             # show every line as accepted
     python listen_test.py --list-devices             # show the microphones
-    python listen_test.py --device 2                 # use a specific microphone
+    python listen_test.py --device plughw:0,0        # use a specific microphone
     python listen_test.py --sample-rate 48000        # ask the microphone for a specific rate
     python listen_test.py --file heard.wav           # transcribe a recording in place of the microphone
     python listen_test.py --list-models              # show the model names
@@ -16,6 +16,7 @@ repo root or from inside input/. Stop with Ctrl-C:
 import argparse
 import json
 import os
+import subprocess
 import sys
 import time
 
@@ -37,13 +38,6 @@ def load_listening_config() -> dict:
         return json.load(f).get("listening", {})
 
 
-def parse_device(device):
-    # Devices can be given by index or by name
-    if isinstance(device, str) and device.isdigit():
-        return int(device)
-    return device
-
-
 def main():
     listening_config = load_listening_config()
 
@@ -53,7 +47,7 @@ def main():
     parser.add_argument("--wake-word", default=listening_config.get("wake_word", DEFAULT_WAKE_WORD),
                         help="wake word, or \"\" for none (default: from kepler_config.json)")
     parser.add_argument("--device", default=listening_config.get("device"),
-                        help="microphone index or name (default: from kepler_config.json, else the system default)")
+                        help="ALSA device to record from (default: from kepler_config.json, else the ALSA default)")
     parser.add_argument("--sample-rate", type=int, default=listening_config.get("sample_rate"),
                         help="sample rate to ask the microphone for")
     parser.add_argument("--update-interval", type=float,
@@ -70,9 +64,8 @@ def main():
         return 0
 
     if args.list_devices:
-        import sounddevice
-        print(sounddevice.query_devices())
-        return 0
+        # The names that --device accepts
+        return subprocess.run(["arecord", "-L"]).returncode
 
     wake_word = WakeWordFilter(args.wake_word, listening_config.get("wake_word_window_seconds", DEFAULT_WINDOW_SECONDS))
 
@@ -92,7 +85,7 @@ def main():
         recognizer = SpeechRecognizer(
             model=args.model,
             language=listening_config.get("language", DEFAULT_LANGUAGE),
-            device=parse_device(args.device),
+            device=args.device,
             sample_rate=args.sample_rate,
             update_interval=args.update_interval,
             keyterms=[args.wake_word],

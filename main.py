@@ -57,9 +57,10 @@ def log_startup_info():
     logging.info("Changed files: " + changed_summary)
 
 def main():
+    # First, so that a failure in anything after it reaches the log file
+    configure_logging()
     load_dotenv()
     config = load_config()
-    configure_logging()
 
     log_startup_info()
 
@@ -94,6 +95,11 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
-
-
+    try:
+        main()
+    except Exception:
+        # Goes to the log file with its traceback, and to stderr through the handler for errors
+        logging.exception("Startup failed, shutting down")
+        logging.shutdown()
+        # The threads that were already started run forever and would keep the process alive
+        os._exit(1)

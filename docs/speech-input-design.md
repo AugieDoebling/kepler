@@ -20,7 +20,7 @@ You speak to Kepler and he answers, with no keyboard.
 ### Flow
 
 ```
-microphone ──▶ Moonshine MicTranscriber  (muted while Kepler is speaking)
+microphone ──▶ arecord ──▶ Moonshine  (muted while Kepler is speaking)
                voice detection + speech-to-text, on the Pi
                    │ "line completed" callback, with the text
                    ▼
@@ -56,8 +56,8 @@ keyboard thread ──typed line──▶  InputState  ──wait_for_message()�
 | `model` | `tiny`, `base`, `tiny-streaming`, `small-streaming` or `medium-streaming`. |
 | `wake_word` | Lines without it are ignored. `""` turns the wake word off. |
 | `wake_word_window_seconds` | After the wake word is said on its own, how long the next line is accepted without it. |
-| `device` | Microphone index or name; `null` is the system default. `listen_test.py --list-devices` shows them. |
-| `sample_rate` | Rate to ask the microphone for; `null` is 16 kHz, falling back to the device's own rate if it refuses. |
+| `device` | ALSA device to record from; `null` is `default`. `listen_test.py --list-devices` shows them. |
+| `sample_rate` | Rate to ask the microphone for; `null` is 16 kHz. The `default` device converts from the codec's own rate. |
 | `update_interval` | Seconds of audio between transcription passes. The end of a line is only noticed on a pass, so smaller is more responsive and uses more CPU. Moonshine's own default is 0.5. |
 | `options` | Passed straight to Moonshine, for tuning such as `{"vad_threshold": "0.3"}`. |
 
@@ -92,11 +92,11 @@ There is no ready-made wake word model for "Kepler", and speech-to-text is runni
 
 ### `SpeechRecognizer` (`input/recognizer.py`)
 
-Wraps Moonshine's `MicTranscriber`: applies the config, loads the model, opens the microphone, and calls back with each completed line.
+Applies the config, loads the model, opens the microphone, and calls back with each completed line. The microphone is read with `arecord` and passed to a Moonshine stream, the same way `audio_out.py` plays through `aplay`.
 
-This differs from the proposal, which had its own microphone capture class (`input/audio_in.py`). The installed Moonshine (0.1.5) turned out to have a `mute()` on its microphone class for exactly this purpose, and to handle a microphone that refuses 16 kHz, so the separate class was not needed.
+Moonshine's own `MicTranscriber` was used at first and had to go. It records through `sounddevice` and PortAudio, and Ubuntu's `libportaudio2` is built with a PulseAudio backend: with no PulseAudio server running, PortAudio fails to start at all (`PulseAudio_Initialize: Can't connect to server`), so `import sounddevice` raises before any device is opened. The Pi runs plain ALSA, and adding a sound server just for this would put it between `aplay` and the codec.
 
-**Sample rate on the Pi.** The Codec Zero has one clock for playback and recording, and `audio_out.py` plays at 48 kHz. I believe recording at a different rate while audio is playing would fail. If it does, set `"sample_rate": 48000`; Moonshine converts internally. This needs checking on the Pi.
+**Sample rate on the Pi.** The codec has one clock for playback and recording, and `audio_out.py` plays at 48 kHz. Recording goes through the ALSA `default` device, which `~/.asoundrc` pins to 48 kHz at the codec, so recording at 16 kHz while audio plays works. Checked on the Pi.
 
 ### Not hearing himself
 
@@ -145,7 +145,7 @@ python listen_test.py --model small-streaming    # another model
 python listen_test.py --partial                  # also show the text while it is being spoken
 python listen_test.py --wake-word ""             # show every line as accepted
 python listen_test.py --list-devices             # show the microphones
-python listen_test.py --device 2                 # use a specific microphone
+python listen_test.py --device plughw:0,0        # use a specific microphone
 python listen_test.py --sample-rate 48000        # ask the microphone for a specific rate
 python listen_test.py --file heard.wav           # transcribe a recording in place of the microphone
 python listen_test.py --list-models              # show the model names
@@ -157,9 +157,19 @@ The proposal's `--save` option (record what the microphone heard) is not impleme
 
 ## One-time setup on the Pi
 
-1. `sudo apt install libportaudio2` (needed by `sounddevice`).
+1. `sudo apt install alsa-utils` (for `arecord`, already there if `aplay` is).
 2. `pip install -r requirements.txt` in the venv.
-3. Turn on the Codec Zero's built-in microphone. The board ships with mixer presets in Raspberry Pi's `Pi-Codec` repository; the one for this setup is `Codec_Zero_OnboardMIC_record_and_SPK_playback.state`, loaded with `sudo alsactl restore -f <path>`. If you loaded a playback-only preset when you set up the speaker, the microphone is currently off.
+3. Turn on the built-in microphone, it is off in a playback-only mixer setup. The microphone is on the codec's Mic 2 input. While the path is off the codec does not even start for recording, and `arecord` hangs or fails with `Input/output error` unless something was played in the last few seconds.
+
+   ```
+   amixer -c 0 sset 'Mic 2' 7 on                    # +36 dB
+   amixer -c 0 sset 'Mic 2 Amp Source MUX' MIC_P
+   amixer -c 0 sset 'Mixin Left Mic 2' on
+   amixer -c 0 sset 'Mixin Right Mic 2' on
+   amixer -c 0 sset 'Mixin PGA' on
+   amixer -c 0 sset 'ADC' on
+   sudo alsactl store                               # keep it across reboots
+   ```
 4. Run `python input/listen_test.py` once while online, to download the model and check the microphone.
 5. Set `"audio_input": true`.
 
@@ -178,7 +188,7 @@ The proposal's `--save` option (record what the microphone heard) is not impleme
 | `llm/llm_thread.py` | Accept an optional `InputState`; take the user turn from it. |
 | `main.py` | Call `start_input` and pass the state on. |
 | `kepler_config.json` | Add the `listening` block. `audio_input` stays false. |
-| `requirements.txt` | Add `moonshine-voice` and `sounddevice`. |
+| `requirements.txt` | Add `moonshine-voice`. |
 
 ## Cost
 
