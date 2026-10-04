@@ -14,10 +14,18 @@ which yields 24 kHz mono 16-bit PCM):
             player.write(response.audio_content)
 
 The `with` block blocks on exit until all buffered audio has finished playing.
+
+On machines without `aplay` (macOS, for development) the chunks are collected
+and played with `afplay` when the `with` block exits, so playback there is not
+streamed.
 """
 from __future__ import annotations
 
+import os
+import shutil
 import subprocess
+import tempfile
+import wave
 
 
 class PcmPlayer:
@@ -37,14 +45,25 @@ class PcmPlayer:
             "-r", str(rate),
             "-c", str(channels),
         ]
+        self._rate = rate
+        self._channels = channels
         self._proc: subprocess.Popen | None = None
+        self._buffer: bytearray | None = None
 
     def __enter__(self) -> "PcmPlayer":
-        self._proc = subprocess.Popen(self._args, stdin=subprocess.PIPE)
+        if shutil.which("aplay"):
+            self._proc = subprocess.Popen(self._args, stdin=subprocess.PIPE)
+        elif shutil.which("afplay"):
+            self._buffer = bytearray()
+        else:
+            raise RuntimeError("No audio player found, expected aplay (Linux) or afplay (macOS)")
         return self
 
     def write(self, pcm_bytes: bytes) -> None:
         """Write one chunk of PCM. Call repeatedly as chunks stream in."""
+        if self._buffer is not None:
+            self._buffer.extend(pcm_bytes)
+            return
         if not (self._proc and self._proc.stdin):
             raise RuntimeError("PcmPlayer must be used as a context manager")
         self._proc.stdin.write(pcm_bytes)
@@ -55,12 +74,29 @@ class PcmPlayer:
             self._proc.wait()          # block until playback finishes
         self._proc = None
 
+        if self._buffer:
+            self._play_buffer_with_afplay()
+        self._buffer = None
+
+    def _play_buffer_with_afplay(self) -> None:
+        # afplay needs a file, and only 16-bit PCM is handled here
+        fd, path = tempfile.mkstemp(suffix=".wav")
+        os.close(fd)
+        try:
+            with wave.open(path, "wb") as wf:
+                wf.setnchannels(self._channels)
+                wf.setsampwidth(2)
+                wf.setframerate(self._rate)
+                wf.writeframes(bytes(self._buffer))
+            subprocess.run(["afplay", path])
+        finally:
+            os.remove(path)
+
 
 if __name__ == "__main__":
     # Demo: stream a WAV file's PCM in small chunks, mimicking how a network
     # TTS stream would arrive. Usage: python output/audio_out.py [file.wav]
     import sys
-    import wave
 
     path = sys.argv[1] if len(sys.argv) > 1 else "output/corporate-trainer.wav"
     with wave.open(path, "rb") as wf:

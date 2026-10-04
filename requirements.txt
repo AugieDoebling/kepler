@@ -1,6 +1,5 @@
 aioconsole
 colorama
-google-cloud-texttospeech
 ollama
 anthropic
 google-genai

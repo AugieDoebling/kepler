@@ -1,4 +1,5 @@
 import threading
+from typing import Optional
 
 class OutputState:
     def __init__(self):
@@ -17,6 +18,21 @@ class OutputState:
 
     def has_queued_output(self):
         return len(self.output_queue) > 0
-        
-    
-    
+
+
+def start_output(config: dict) -> Optional[OutputState]:
+    """
+    Start speech output if it is enabled in the config.
+
+    Returns the state to queue text on, or None when audio output is off.
+    """
+    if not config.get("audio_output", False):
+        return None
+
+    # Imported here so that the speech dependencies are only needed when audio output is on
+    from output import output_thread
+    from output.speech import SpeechSynthesizer
+
+    output_state = OutputState()
+    output_thread.start_thread(output_state, SpeechSynthesizer.from_config(config))
+    return output_state

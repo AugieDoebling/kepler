@@ -13,6 +13,7 @@ from llm.actions import Actions
 from llm.llm_provider import create_provider
 from llm.llm_state import LlmState
 from llm.llm_types import Message
+from output.output_state import start_output
 
 def configure_logging():
     os.makedirs("logs", exist_ok=True)
@@ -69,6 +70,8 @@ def main():
     hexarth_state = HexarthState()
     actions = Actions(display_state, hexarth_state)
     llm_provider = create_provider(config)
+    output_state = start_output(config)
+
     # TODO: Move system messages into config
     llm_state = LlmState([
         Message(role='system', content="You are a physical robot companion. You can talk to your human best friend and move "
@@ -81,11 +84,10 @@ def main():
         Message(role='system', content="Move around whenever you want, you're a robot so it makes sense to move around a bit"),
     ])
     
-    llm_thread.start_thread(actions, llm_state, llm_provider)
+    llm_thread.start_thread(actions, llm_state, llm_provider, output_state)
     display_thread.start_thread(display_state)
     hexarth_thread.start_thread(hexarth_state, stationary_mode)
     # TODO: Add memory thread
-    # TODO: Add talking thread
 
 
 

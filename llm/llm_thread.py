@@ -5,18 +5,20 @@ from .actions import Actions
 from .llm_provider import LlmProvider
 from .llm_state import LlmState
 from .llm_types import LlmError
+from output.output_state import OutputState
+from typing import Optional
 
 # Stops a model that keeps calling tools from never handing the conversation back
 MAX_TOOL_ROUNDS = 5
 
-def start_thread(actions: Actions, llmState: LlmState, provider: LlmProvider):
+def start_thread(actions: Actions, llmState: LlmState, provider: LlmProvider, output_state: Optional[OutputState] = None):
     """
     Create a thread that is responsible for running the LLM.
     """
-    llm_thread = threading.Thread(target=loop, args=(actions, llmState, provider))
+    llm_thread = threading.Thread(target=loop, args=(actions, llmState, provider, output_state))
     llm_thread.start()
 
-def loop(actions: Actions, llmState: LlmState, provider: LlmProvider):
+def loop(actions: Actions, llmState: LlmState, provider: LlmProvider, output_state: Optional[OutputState] = None):
     logging.info("Starting LLM thread with provider %s", provider.name)
 
     tools = actions.get_actions()
@@ -44,8 +46,9 @@ def loop(actions: Actions, llmState: LlmState, provider: LlmProvider):
             llmState.add_message(response.message, require_response=False)
 
             if response.message.content:
-                # TODO: Call output state
                 print(response.message.content)
+                if output_state:
+                    output_state.queue_output(response.message.content)
 
             if response.message.tool_calls:
                 for tool_call in response.message.tool_calls:

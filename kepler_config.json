@@ -1,12 +1,17 @@
 {
     "database_connection_string": "",
     "audio_input": false,
-    "audio_output": false,
+    "audio_output": true,
+    "speech": {
+        "model": "gemini-3.8-flash-lite-tts",
+        "voice": "Finn",
+        "style": "butler"
+    },
     "stationary_mode": false,
     "llm": {
-        "provider": "ollama",
+        "provider": "gemini",
         "ollama_model": "gemma4:e4b",
         "claude_model": "claude-haiku-4-5",
-        "gemini_model": "gemini-3.5-flash-lite"
+        "gemini_model": "gemini-3.1-flash-lite"
     }
 }
