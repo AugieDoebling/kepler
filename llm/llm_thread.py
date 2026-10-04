@@ -6,6 +6,9 @@ from .llm_provider import LlmProvider
 from .llm_state import LlmState
 from .llm_types import LlmError
 
+# Stops a model that keeps calling tools from never handing the conversation back
+MAX_TOOL_ROUNDS = 5
+
 def start_thread(actions: Actions, llmState: LlmState, provider: LlmProvider):
     """
     Create a thread that is responsible for running the LLM.
@@ -17,6 +20,7 @@ def loop(actions: Actions, llmState: LlmState, provider: LlmProvider):
     logging.info("Starting LLM thread with provider %s", provider.name)
 
     tools = actions.get_actions()
+    tool_rounds = 0
 
     while True:
         awaiting_response, messages = llmState.get_status_and_messages()
@@ -44,7 +48,6 @@ def loop(actions: Actions, llmState: LlmState, provider: LlmProvider):
                 print(response.message.content)
 
             if response.message.tool_calls:
-                needed_tool_response = False
                 for tool_call in response.message.tool_calls:
                     print('tool call - ', tool_call.name)
                     try:
@@ -58,12 +61,14 @@ def loop(actions: Actions, llmState: LlmState, provider: LlmProvider):
                     result = "ok" if action_outcome is None else str(action_outcome)
                     llmState.add_tool_result(tool_call.id, tool_call.name, result, require_response=False)
 
-                    if action_outcome is not None:
-                        needed_tool_response = True
-
-                if needed_tool_response:
+                # The LLM's turn is not over until it responds without calling a tool
+                tool_rounds += 1
+                if tool_rounds < MAX_TOOL_ROUNDS:
                     llmState.set_awaiting_response(True)
                     continue
+                logging.warning("LLM made %d tool calling rounds in a row, returning to the user", tool_rounds)
+
+        tool_rounds = 0
 
         # TODO: Get message from input state
         user_response = input("--> ")
