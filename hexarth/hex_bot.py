@@ -4,8 +4,9 @@ from hexarth.hexarth_state import HexarthState
 import time
 
 class HexBot:
-    def __init__(self, hexarth_state: HexarthState):
+    def __init__(self, hexarth_state: HexarthState, stationary_mode: bool = False):
         self.hexarth_state = hexarth_state
+        self.stationary_mode = stationary_mode
         self.current_action = None
         self.current_action_start = time.perf_counter()
     
@@ -16,6 +17,11 @@ class HexBot:
         pass
 
     def send_command(self, command: dict):
+        if self.stationary_mode:
+            # Actions still run for their full duration, the command just never reaches the robot
+            logging.info(f"Stationary mode, simulating command: {command}")
+            return
+
         logging.debug(f"Sending command: {command}")
         pass
 
@@ -46,7 +52,7 @@ class HexBot:
         if command == "go_to_initial_position":
             return commands.go_to_initial_position()
         elif command == "move":
-            return commands.move(args["forward_speed"], args["left_speed"], args["counterclockwise_rotation_speed"])
+            return commands.move(args["forward_speed"], args["left_speed"], args.get("counterclockwise_rotation_speed", 0))
         elif command == "stop":
             return commands.stop()
         elif command == "pose_angle_rotation":

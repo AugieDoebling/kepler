@@ -55,6 +55,10 @@ def main():
 
     log_startup_info()
 
+    stationary_mode = config.get("stationary_mode", False)
+    if stationary_mode:
+        print("Stationary mode is on, movement commands will be simulated")
+
     display_state = DisplayState()
     hexarth_state = HexarthState()
     actions = Actions(display_state, hexarth_state)
@@ -73,7 +77,7 @@ def main():
     
     llm_thread.start_thread(actions, llm_state, llm_provider)
     display_thread.start_thread(display_state)
-    hexarth_thread.start_thread(hexarth_state)
+    hexarth_thread.start_thread(hexarth_state, stationary_mode)
     # TODO: Add memory thread
     # TODO: Add talking thread
 

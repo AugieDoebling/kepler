@@ -7,19 +7,19 @@ from hexarth.hex_bot import HexBot
 UPDATE_HTZ = 1
 UPDATE_INTERVAL = 1.0 / UPDATE_HTZ
 
-def start_thread(hexarth_state: HexarthState):
+def start_thread(hexarth_state: HexarthState, stationary_mode: bool = False):
     """
     Create a thread that is responsible for controlling hexarth.
     """
-    hexarth_thread = threading.Thread(target=loop, args=(hexarth_state,))
+    hexarth_thread = threading.Thread(target=loop, args=(hexarth_state, stationary_mode))
     hexarth_thread.start()
 
 
-def loop(hexarth_state: HexarthState):
-    logging.info("Starting hexarth thread")
+def loop(hexarth_state: HexarthState, stationary_mode: bool = False):
+    logging.info("Starting hexarth thread, stationary mode %s", "on" if stationary_mode else "off")
 
     last_update_time = time.perf_counter()
-    hexbot = HexBot(hexarth_state)
+    hexbot = HexBot(hexarth_state, stationary_mode)
 
     while True:
         hexbot.update()
