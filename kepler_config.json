@@ -1,11 +1,21 @@
 {
     "database_connection_string": "",
-    "audio_input": false,
+    "audio_input": true,
     "audio_output": true,
     "speech": {
         "model": "gemini-3.8-flash-lite-tts",
         "voice": "Finn",
         "style": "butler"
+    },
+    "listening": {
+        "model": "base",
+        "language": "en",
+        "wake_word": "Kepler",
+        "wake_word_window_seconds": 6,
+        "device": null,
+        "sample_rate": null,
+        "update_interval": 0.3,
+        "options": {}
     },
     "stationary_mode": false,
     "llm": {

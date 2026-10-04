@@ -4,6 +4,7 @@ from display import display_thread
 from display.display_state import DisplayState
 from hexarth import hexarth_thread
 from hexarth.hexarth_state import HexarthState
+from input.input_state import start_input
 import json
 import logging
 import subprocess
@@ -71,6 +72,7 @@ def main():
     actions = Actions(display_state, hexarth_state)
     llm_provider = create_provider(config)
     output_state = start_output(config)
+    input_state = start_input(config, output_state)
 
     # TODO: Move system messages into config
     llm_state = LlmState([
@@ -84,7 +86,7 @@ def main():
         Message(role='system', content="Move around whenever you want, you're a robot so it makes sense to move around a bit"),
     ])
     
-    llm_thread.start_thread(actions, llm_state, llm_provider, output_state)
+    llm_thread.start_thread(actions, llm_state, llm_provider, output_state, input_state)
     display_thread.start_thread(display_state)
     hexarth_thread.start_thread(hexarth_state, stationary_mode)
     # TODO: Add memory thread

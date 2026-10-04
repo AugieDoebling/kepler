@@ -7,6 +7,8 @@ python-dotenv
 pymongo
 pillow
 numpy
+moonshine-voice
+sounddevice
 #rpi-lgpio
 #adafruit-blinka
 #adafruit-circuitpython-rgb-display

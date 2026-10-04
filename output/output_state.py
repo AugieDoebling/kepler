@@ -5,10 +5,12 @@ class OutputState:
     def __init__(self):
         self._lock = threading.Lock()
         self.output_queue = []
+        self._unfinished = 0
 
     def queue_output(self, text: str):
         with self._lock:
             self.output_queue.append(text)
+            self._unfinished += 1
     
     def pop_output(self):
         with self._lock:
@@ -18,6 +20,20 @@ class OutputState:
 
     def has_queued_output(self):
         return len(self.output_queue) > 0
+
+    def finish_output(self):
+        """
+        Called by the output thread once a popped item has been spoken, skipped, or has failed.
+        """
+        with self._lock:
+            self._unfinished -= 1
+
+    def is_speaking(self):
+        """
+        True from the moment text is queued until the last of it has finished playing.
+        """
+        with self._lock:
+            return self._unfinished > 0
 
 
 def start_output(config: dict) -> Optional[OutputState]:

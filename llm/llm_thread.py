@@ -5,20 +5,23 @@ from .actions import Actions
 from .llm_provider import LlmProvider
 from .llm_state import LlmState
 from .llm_types import LlmError
+from input.input_state import InputState
 from output.output_state import OutputState
 from typing import Optional
 
 # Stops a model that keeps calling tools from never handing the conversation back
 MAX_TOOL_ROUNDS = 5
 
-def start_thread(actions: Actions, llmState: LlmState, provider: LlmProvider, output_state: Optional[OutputState] = None):
+def start_thread(actions: Actions, llmState: LlmState, provider: LlmProvider,
+                 output_state: Optional[OutputState] = None, input_state: Optional[InputState] = None):
     """
     Create a thread that is responsible for running the LLM.
     """
-    llm_thread = threading.Thread(target=loop, args=(actions, llmState, provider, output_state))
+    llm_thread = threading.Thread(target=loop, args=(actions, llmState, provider, output_state, input_state))
     llm_thread.start()
 
-def loop(actions: Actions, llmState: LlmState, provider: LlmProvider, output_state: Optional[OutputState] = None):
+def loop(actions: Actions, llmState: LlmState, provider: LlmProvider,
+         output_state: Optional[OutputState] = None, input_state: Optional[InputState] = None):
     logging.info("Starting LLM thread with provider %s", provider.name)
 
     tools = actions.get_actions()
@@ -73,6 +76,6 @@ def loop(actions: Actions, llmState: LlmState, provider: LlmProvider, output_sta
 
         tool_rounds = 0
 
-        # TODO: Get message from input state
-        user_response = input("--> ")
+        # With speech input on, the input state collects both spoken and typed messages
+        user_response = input_state.wait_for_message() if input_state else input("--> ")
         llmState.add_message_content("user", user_response, require_response=True)

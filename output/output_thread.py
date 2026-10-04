@@ -23,14 +23,14 @@ def loop(output_state: OutputState, synthesizer: SpeechSynthesizer):
             time.sleep(0.2)
             continue
 
-        if not text.strip():
-            continue
-
         try:
-            speak(synthesizer, text)
+            if text.strip():
+                speak(synthesizer, text)
         except Exception:
             # The text has already been printed, so a failure here only loses the audio
             logging.exception("Failed to speak: %s", text)
+        finally:
+            output_state.finish_output()
 
 
 def speak(synthesizer: SpeechSynthesizer, text: str):
