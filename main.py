@@ -48,7 +48,7 @@ def log_startup_info():
     print("Git hash:", git_hash)
     logging.info("Git hash: " + git_hash)
 
-    changed_files = subprocess.check_output(['git', 'diff', '--name-only', 'HEAD']).decode('ascii').splitlines()
+    changed_files = subprocess.check_output(['git', 'diff', '--name-only', 'HEAD', '--']).decode('ascii').splitlines()
     changed_summary = ", ".join(changed_files) if changed_files else "(none)"
 
     print("Changed files:", changed_summary)
