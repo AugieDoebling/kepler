@@ -8,5 +8,6 @@
         "ollama_model": "gemma4:e4b",
         "claude_model": "claude-haiku-4-5",
         "gemini_model": "gemini-2.5-flash-lite"
+        "gemini_model": "gemini-3.5-flash-lite"
     }
 }
