@@ -25,6 +25,12 @@ def configure_logging():
         format="%(asctime)s [%(threadName)s] %(levelname)s: %(message)s"
     )
 
+    # Errors also go to stderr so they are visible without opening the log file
+    stderr_handler = logging.StreamHandler()
+    stderr_handler.setLevel(logging.ERROR)
+    stderr_handler.setFormatter(logging.Formatter("%(asctime)s [%(threadName)s] %(levelname)s: %(message)s"))
+    logging.getLogger().addHandler(stderr_handler)
+
     # Keep the LLM SDKs' request level debug output out of our log file
     for noisy_logger in ("anthropic", "google_genai", "httpx", "httpx2", "httpcore", "httpcore2"):
         logging.getLogger(noisy_logger).setLevel(logging.WARNING)
