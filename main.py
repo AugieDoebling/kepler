@@ -3,14 +3,16 @@ from datetime import datetime
 from display import display_thread
 from display.display_state import DisplayState
 from hexarth import hexarth_thread
-from ollama import Message
 from hexarth.hexarth_state import HexarthState
 import json
 import logging
 import subprocess
+from dotenv import load_dotenv
 from llm import llm_thread
 from llm.actions import Actions
+from llm.llm_provider import create_provider
 from llm.llm_state import LlmState
+from llm.llm_types import Message
 
 def configure_logging():
     os.makedirs("logs", exist_ok=True)
@@ -22,6 +24,10 @@ def configure_logging():
         level=logging.DEBUG,
         format="%(asctime)s [%(threadName)s] %(levelname)s: %(message)s"
     )
+
+    # Keep the LLM SDKs' request level debug output out of our log file
+    for noisy_logger in ("anthropic", "google_genai", "httpx", "httpx2", "httpcore", "httpcore2"):
+        logging.getLogger(noisy_logger).setLevel(logging.WARNING)
 
 def load_config():
     if not os.path.exists("kepler_config.json"):
@@ -36,7 +42,14 @@ def log_startup_info():
     print("Git hash:", git_hash)
     logging.info("Git hash: " + git_hash)
 
+    changed_files = subprocess.check_output(['git', 'diff', '--name-only', 'HEAD']).decode('ascii').splitlines()
+    changed_summary = ", ".join(changed_files) if changed_files else "(none)"
+
+    print("Changed files:", changed_summary)
+    logging.info("Changed files: " + changed_summary)
+
 def main():
+    load_dotenv()
     config = load_config()
     configure_logging()
 
@@ -45,6 +58,7 @@ def main():
     display_state = DisplayState()
     hexarth_state = HexarthState()
     actions = Actions(display_state, hexarth_state)
+    llm_provider = create_provider(config)
     # TODO: Move system messages into config
     llm_state = LlmState([
         Message(role='system', content="You are a physical robot companion. You can talk to your human best friend and move "
@@ -57,7 +71,7 @@ def main():
         Message(role='system', content="Move around whenever you want, you're a robot so it makes sense to move around a bit"),
     ])
     
-    # TODO: Add LLM thread
+    llm_thread.start_thread(actions, llm_state, llm_provider)
     display_thread.start_thread(display_state)
     hexarth_thread.start_thread(hexarth_state)
     # TODO: Add memory thread
