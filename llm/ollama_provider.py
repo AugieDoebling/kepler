@@ -1,5 +1,6 @@
 import uuid
 import ollama
+from .llm_provider import BOOT_PROMPT
 from .llm_types import ActionSpec, LlmRequestError, LlmResponse, LlmUnavailableError, Message, ToolCall
 
 
@@ -13,7 +14,7 @@ class OllamaProvider:
         try:
             response: ollama.ChatResponse = ollama.chat(
                 model=self.model,
-                messages=[self._to_ollama(m) for m in messages],
+                messages=self._to_ollama_messages(messages),
                 tools=[spec.func for spec in tools],
             )
         except ConnectionError as e:
@@ -32,6 +33,16 @@ class OllamaProvider:
             tool_calls=tool_calls,
             provider=self.name,
         ))
+
+    def _to_ollama_messages(self, messages: list[Message]) -> list[ollama.Message]:
+        ollama_messages = [self._to_ollama(m) for m in messages]
+
+        # The robot speaks first on boot, so give it a user turn to respond to after the system prompt
+        first_turn = next((i for i, m in enumerate(messages) if m.role != "system"), len(messages))
+        if first_turn == len(messages) or messages[first_turn].role != "user":
+            ollama_messages.insert(first_turn, ollama.Message(role="user", content=BOOT_PROMPT))
+
+        return ollama_messages
 
     def _to_ollama(self, message: Message) -> ollama.Message:
         if message.role == "tool":

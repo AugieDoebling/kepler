@@ -13,7 +13,6 @@ from llm import llm_thread
 from llm.actions import Actions
 from llm.llm_provider import create_provider
 from llm.llm_state import LlmState
-from llm.llm_types import Message
 from output.output_state import start_output
 
 def configure_logging():
@@ -74,19 +73,8 @@ def main():
     llm_provider = create_provider(config)
     output_state = start_output(config)
     input_state = start_input(config, output_state)
+    llm_state = LlmState()
 
-    # TODO: Move system messages into config
-    llm_state = LlmState([
-        Message(role='system', content="You are a physical robot companion. You can talk to your human best friend and move "
-                                 "around. Keep your responses to the length of a standard human conversation. Your "
-                                 "personality is that of a whimsical English butler."),
-        Message(role='system', content="All of your responses will be spoken aloud via text to speech, so only respond with "
-                                 "text that should be spoken. No sound affects or context, and an absolute max length "
-                                 "of 3 sentences, but most responses should be shorter."),
-        Message(role='system', content="You've just booted up for the morning and are ready to start the day."),
-        Message(role='system', content="Move around whenever you want, you're a robot so it makes sense to move around a bit"),
-    ])
-    
     llm_thread.start_thread(actions, llm_state, llm_provider, output_state, input_state)
     display_thread.start_thread(display_state)
     hexarth_thread.start_thread(hexarth_state, stationary_mode)

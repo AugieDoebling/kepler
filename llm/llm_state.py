@@ -1,8 +1,22 @@
+import os
 import threading
 from .llm_types import Message
 
+SYSTEM_PROMPT_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "system_prompt.md")
+
+def load_system_prompt(path: str = SYSTEM_PROMPT_PATH) -> Message:
+    """
+    Read the system prompt file, the whole file becomes one system message.
+    """
+    if not os.path.exists(path):
+        raise FileNotFoundError(f"System prompt file not found: {path}")
+
+    with open(path, "r") as f:
+        return Message(role="system", content=f.read().strip())
+
 class LlmState:
-    def __init__(self, system_messages):
+    def __init__(self):
+        system_messages = [load_system_prompt()]
         self._lock = threading.Lock()
         self.system_messages = system_messages
         self.current_messages = system_messages

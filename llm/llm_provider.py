@@ -1,4 +1,5 @@
 import os
+from datetime import datetime
 from typing import Protocol
 from .llm_types import ActionSpec, LlmAuthError, LlmResponse, Message
 
@@ -7,8 +8,26 @@ DEFAULT_OLLAMA_MODEL = "gemma4:e4b"
 DEFAULT_CLAUDE_MODEL = "claude-haiku-4-5"
 DEFAULT_GEMINI_MODEL = "gemini-3.5-flash-lite"
 
+def time_of_day(now: datetime) -> str:
+    if 5 <= now.hour < 12:
+        return "morning"
+    if 12 <= now.hour < 17:
+        return "afternoon"
+    if 17 <= now.hour < 22:
+        return "evening"
+    return "night"
+
+
+def build_boot_prompt(now: datetime) -> str:
+    return (
+        f"(You have just powered on. It is {now.strftime('%A')} {time_of_day(now)}. "
+        f"Greet whoever is there in a way that suits the time of day.)"
+    )
+
+
 # Hosted providers must be given a user turn to respond to, but the robot speaks first on boot.
-BOOT_PROMPT = "(You have just powered on. Greet your friend.)"
+# Built once at startup, so the first turn of the conversation stays the same on every later request.
+BOOT_PROMPT = build_boot_prompt(datetime.now())
 REQUEST_TIMEOUT_SECONDS = 30.0
 MAX_OUTPUT_TOKENS = 1024
 
