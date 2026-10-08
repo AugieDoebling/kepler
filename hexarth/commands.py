@@ -100,6 +100,68 @@ def set_leg_joint_angles(leg: int, coxa: float, femur: float, tibia: float, use_
       "tibia": tibia,
    }
 
+# SAFETY COMMANDS
+
+def emergency_stop():
+   """
+   Make every servo go limp at once. The ESP32 holds them limp for 10 seconds and then switches them
+   back on by itself, and does nothing else in that time. The robot will drop onto its body.
+   """
+   return {
+      "T": 0,
+   }
+
+def clear_emergency():
+   """Clear the emergency stop flag that emergency_stop sets"""
+   return {
+      "T": 999,
+   }
+
+# LIGHT AND SCREEN COMMANDS
+
+def set_led_brightness(io4_brightness: int, io5_brightness: int):
+   """
+   Set the brightness of the two light outputs on the ESP32 board.
+
+   :param io4_brightness: Brightness of the light on pin IO4. Value range: 0 ~ 100, 0 is off.
+   :param io5_brightness: Brightness of the light on pin IO5. Value range: 0 ~ 100, 0 is off.
+   """
+   # TODO: validation assertions
+   max_brightness = 255
+
+   return {
+      "T": 132,
+      "IO4": round((io4_brightness / 100) * max_brightness),
+      "IO5": round((io5_brightness / 100) * max_brightness),
+   }
+
+# The screen is 128 pixels wide and the ESP32 draws its text 6 pixels to a character
+OLED_LINE_CHARACTERS = 21
+
+def write_oled_text(line: int, text: str, centered: bool = False):
+   """
+   Write one line of text on the small screen on the ESP32 board. The other lines keep what was last written to them.
+
+   :param line: line number. Value range: 0 ~ 3. Line 0 is the top line.
+   :param text: the text to show on that line.
+   :param centered: put the text in the middle of the line, in place of starting at the left edge.
+   """
+   if centered:
+      # The screen has no centering of its own, so the text is pushed across with spaces
+      text = " " * max(0, (OLED_LINE_CHARACTERS - len(text)) // 2) + text
+
+   return {
+      "T": 13,
+      "lineNum": line,
+      "Text": text,
+   }
+
+def clear_oled_text():
+   """Put the small screen back to its default display, in place of the text written with write_oled_text"""
+   return {
+      "T": -3,
+   }
+
 # WI-FI COMMANDS
 
 def set_wifi_on_boot_mode(access_point_on: bool, connect_to_network: bool):

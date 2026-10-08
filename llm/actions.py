@@ -7,6 +7,13 @@ from hexarth.hexarth_state import HexarthState
 from ollama import Client
 from .llm_types import ActionSpec
 
+SPIN_SPEED_LIMITS = (-100, 100)
+SPIN_DURATION_LIMITS_MS = (2000, 10000)
+
+# The sway amounts and tempo are a percentage of the most the robot can do
+SWAY_LIMITS = (0, 100)
+SWAY_DURATION_LIMITS_MS = (2000, 10000)
+
 # Head speeds in degrees per second, from a slow turn to a brisk one
 HEAD_SPEED_LIMITS = (10.0, 60.0)
 
@@ -75,6 +82,56 @@ class Actions:
             func=self.move,
          ),
          ActionSpec(
+            name="spin",
+            description="Turn the robot on the spot, without travelling anywhere. Use it to face a different way, to turn towards someone, or to twirl for fun.",
+            input_schema={
+               "type": "object",
+               "properties": {
+                  "rotation_speed": {
+                     "type": "integer",
+                     "description": "How fast to turn. Values between -100 and 100. Positive values turn counterclockwise, to the robot's left. Negative values turn clockwise, to the robot's right. At full speed a complete turn takes roughly ten seconds.",
+                  },
+                  "duration_ms": {
+                     "type": "integer",
+                     "description": "How long to turn for in milliseconds. Values between 2000 and 10000",
+                  },
+               },
+               "required": ["rotation_speed", "duration_ms"],
+            },
+            func=self.spin,
+         ),
+         ActionSpec(
+            name="dance",
+            description="Dance by swaying the body in place, with the feet planted. Do this when feeling happy or excited: at good news, a compliment, a favourite subject, or when asked to dance. The robot must not be walking at the same time.",
+            input_schema={
+               "type": "object",
+               "properties": {
+                  "side_to_side": {
+                     "type": "integer",
+                     "description": "How far the body tips from side to side. Values between 0 and 100. 0 is none.",
+                  },
+                  "front_to_back": {
+                     "type": "integer",
+                     "description": "How far the body rocks forwards and backwards. Values between 0 and 100. 0 is none.",
+                  },
+                  "twist": {
+                     "type": "integer",
+                     "description": "How far the body twists left and right. Values between 0 and 100. 0 is none. A dance with any twist can only go half as fast.",
+                  },
+                  "tempo": {
+                     "type": "integer",
+                     "description": "How fast the body sways. Values between 0 and 100. 100 is one full sway every two and a half seconds. Faster for excited, slower for content.",
+                  },
+                  "duration_ms": {
+                     "type": "integer",
+                     "description": "How long to dance for in milliseconds. Values between 2000 and 10000",
+                  },
+               },
+               "required": ["side_to_side", "front_to_back", "twist", "tempo", "duration_ms"],
+            },
+            func=self.dance,
+         ),
+         ActionSpec(
             name="move_head",
             description="Turn and tilt the robot's head to look in a direction. Both angles are absolute, not relative to where the head is now.",
             input_schema={
@@ -116,6 +173,42 @@ class Actions:
       :param travel_duration_ms: The duration of the movement in milliseconds. Values between 2000 and 10000
       """
       self.hexarth_state.queue_action("move", {"forward_speed": forward_speed, "left_speed": left_speed}, travel_duration_ms)
+
+   def spin(self, rotation_speed: int, duration_ms: int):
+      """
+      Turn the robot on the spot, without travelling anywhere. Use it to face a different way, to turn towards someone, or to twirl for fun.
+
+      :param rotation_speed: How fast to turn. Values between -100 and 100. Positive values turn counterclockwise, to the robot's left. Negative values turn clockwise, to the robot's right. At full speed a complete turn takes roughly ten seconds.
+      :param duration_ms: How long to turn for in milliseconds. Values between 2000 and 10000
+      """
+      # The LLM does not always keep to the ranges it is given
+      self.hexarth_state.queue_action(
+         "move",
+         {"forward_speed": 0, "left_speed": 0, "counterclockwise_rotation_speed": clamp(rotation_speed, SPIN_SPEED_LIMITS)},
+         clamp(duration_ms, SPIN_DURATION_LIMITS_MS),
+      )
+
+   def dance(self, side_to_side: int, front_to_back: int, twist: int, tempo: int, duration_ms: int):
+      """
+      Dance by swaying the body in place, with the feet planted. Do this when feeling happy or excited: at good news, a compliment, a favourite subject, or when asked to dance. The robot must not be walking at the same time.
+
+      :param side_to_side: How far the body tips from side to side. Values between 0 and 100. 0 is none.
+      :param front_to_back: How far the body rocks forwards and backwards. Values between 0 and 100. 0 is none.
+      :param twist: How far the body twists left and right. Values between 0 and 100. 0 is none. A dance with any twist can only go half as fast.
+      :param tempo: How fast the body sways. Values between 0 and 100. 100 is one full sway every two and a half seconds. Faster for excited, slower for content.
+      :param duration_ms: How long to dance for in milliseconds. Values between 2000 and 10000
+      """
+      # The LLM does not always keep to the ranges it is given
+      self.hexarth_state.queue_action(
+         "pose_angle_rotation",
+         {
+            "x_amp": clamp(side_to_side, SWAY_LIMITS),
+            "y_amp": clamp(front_to_back, SWAY_LIMITS),
+            "z_amp": clamp(twist, SWAY_LIMITS),
+            "frequency": clamp(tempo, SWAY_LIMITS),
+         },
+         clamp(duration_ms, SWAY_DURATION_LIMITS_MS),
+      )
 
    def move_head(self, pan_degrees: float, tilt_degrees: float, speed: float):
       """

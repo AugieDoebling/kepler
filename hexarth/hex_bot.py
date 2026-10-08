@@ -9,6 +9,9 @@ SERIAL_PORT = "/dev/ttyAMA0"
 SERIAL_BAUD = 115200
 SERIAL_WRITE_TIMEOUT_SECONDS = 1.0
 
+# The screen on the ESP32 has four lines, 0 to 3, so there is no exact middle. This is the upper of the two middle lines.
+OLED_NAME_LINE = 1
+
 class HexBot:
     def __init__(self, hexarth_state: HexarthState, stationary_mode: bool = False):
         self.hexarth_state = hexarth_state
@@ -27,6 +30,7 @@ class HexBot:
         self.serial = serial.Serial(SERIAL_PORT, SERIAL_BAUD, write_timeout=SERIAL_WRITE_TIMEOUT_SECONDS)
         # The ESP32 echoes every command back as text until it is told not to
         self.send_command(commands.set_debug_print(False))
+        self.send_command(commands.write_oled_text(OLED_NAME_LINE, "Kepler", centered=True))
 
     def close_coms(self):
         if self.serial:
@@ -52,10 +56,9 @@ class HexBot:
             time_since_action_start = time.perf_counter() - self.current_action_start
             if time_since_action_start > self.current_action["duration_ms"] / 1000:
                 logging.info(f"Completing current command: {self.current_action['command']}")
+                completed_command = self.current_action["command"]
                 self.get_next_action()
-                if self.current_action is None:
-                    # Otherwise the robot carries on until the ESP32 has gone 3 seconds without a command
-                    self.send_command(commands.stop())
+                self.end_command(completed_command)
         else:
             self.get_next_action()
 
@@ -66,6 +69,20 @@ class HexBot:
         command = self.get_command(self.current_action["command"], self.current_action["args"])
         self.send_command(command)
             
+
+    def end_command(self, completed_command: str):
+        """
+        Stop what the completed action started, unless the next action carries straight on from it.
+        Otherwise the robot keeps going until the ESP32 has gone 3 seconds without a command.
+        """
+        next_command = self.current_action["command"] if self.current_action else None
+
+        if completed_command == "pose_angle_rotation":
+            # Stopping the walk does not stop a sway, it has to be set back to nothing
+            self.send_command(commands.pose_angle_rotation(0, 0, 0, 0))
+        elif completed_command == "move" and next_command != "move":
+            # The ESP32 ignores a sway while it is still walking, so this also clears the way for one
+            self.send_command(commands.stop())
 
     def get_next_action(self):
         self.current_action = self.hexarth_state.pop_action()
