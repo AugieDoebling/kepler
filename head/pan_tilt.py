@@ -70,13 +70,13 @@ I2C_BUS = 1
 # Which PCA9685 channel drives which axis. Waveshare's own demos are ambiguous
 # about this and mounting varies, so verify with `python head/pan_tilt.py` and
 # swap here (or pass the channels in) if the axes come out reversed.
-PAN_CHANNEL = 0
-TILT_CHANNEL = 1
+PAN_CHANNEL = 1
+TILT_CHANNEL = 0
 
 # Conservative soft limits in signed degrees. The servos themselves accept
 # +/-90, but the bracket and whatever is mounted on it will bind first.
-PAN_LIMITS = (-80.0, 80.0)
-TILT_LIMITS = (-40.0, 40.0)
+PAN_LIMITS = (-60.0, 60.0)
+TILT_LIMITS = (-45.0, 0.0)
 
 # Step rate for interpolated moves. Matches the 50Hz servo update rate, so
 # there is no point going finer.
