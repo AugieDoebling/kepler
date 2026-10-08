@@ -1,5 +1,7 @@
 import json
 import logging
+import os
+import subprocess
 from hexarth import commands
 from hexarth.hexarth_state import HexarthState
 import time
@@ -9,8 +11,14 @@ SERIAL_PORT = "/dev/ttyAMA0"
 SERIAL_BAUD = 115200
 SERIAL_WRITE_TIMEOUT_SECONDS = 1.0
 
-# The screen on the ESP32 has four lines, 0 to 3, so there is no exact middle. This is the upper of the two middle lines.
-OLED_NAME_LINE = 1
+def get_git_hash() -> str:
+    try:
+        # Run from this file's folder, so it works whatever directory the robot was started from
+        return subprocess.check_output(
+            ["git", "rev-parse", "--short", "HEAD"], cwd=os.path.dirname(os.path.abspath(__file__))
+        ).decode("ascii").strip()
+    except (OSError, subprocess.CalledProcessError):
+        return "unknown"
 
 class HexBot:
     def __init__(self, hexarth_state: HexarthState, stationary_mode: bool = False):
@@ -30,7 +38,13 @@ class HexBot:
         self.serial = serial.Serial(SERIAL_PORT, SERIAL_BAUD, write_timeout=SERIAL_WRITE_TIMEOUT_SECONDS)
         # The ESP32 echoes every command back as text until it is told not to
         self.send_command(commands.set_debug_print(False))
-        self.send_command(commands.write_oled_text(OLED_NAME_LINE, "Kepler", centered=True))
+        self.show_startup_screen()
+
+    def show_startup_screen(self):
+        # The screen on the ESP32 has four lines, 0 to 3. The last is left empty.
+        lines = ["Kepler", f"Git hash: {get_git_hash()}", "All Systems Go"]
+        for line_number, text in enumerate(lines):
+            self.send_command(commands.write_oled_text(line_number, text, centered=True))
 
     def close_coms(self):
         if self.serial:
