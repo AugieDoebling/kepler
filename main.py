@@ -2,6 +2,7 @@ import os
 from datetime import datetime
 from display import display_thread
 from display.display_state import DisplayState
+from display.simulator import start_simulator
 from hexarth import hexarth_thread
 from hexarth.hexarth_state import HexarthState
 from input.input_state import start_input
@@ -72,11 +73,15 @@ def main():
     actions = Actions(display_state, hexarth_state)
     llm_provider = create_provider(config)
     output_state = start_output(config)
-    input_state = start_input(config, output_state)
+    input_state = start_input(config, output_state, display_state)
     llm_state = LlmState()
 
-    llm_thread.start_thread(actions, llm_state, llm_provider, output_state, input_state)
-    display_thread.start_thread(display_state)
+    # Only when there is no speech to set the pace
+    paced_print = config.get("print_output_at_speech_speed", False) and output_state is None
+
+    llm_thread.start_thread(actions, llm_state, llm_provider, output_state, input_state, paced_print,
+                            display_state)
+    display_thread.start_thread(display_state, start_simulator(config))
     hexarth_thread.start_thread(hexarth_state, stationary_mode)
     # TODO: Add memory thread
 

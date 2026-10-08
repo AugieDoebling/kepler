@@ -2,6 +2,7 @@
     "database_connection_string": "",
     "audio_input": true,
     "audio_output": true,
+    "print_output_at_speech_speed": true,
     "speech": {
         "model": "gemini-3.8-flash-lite-tts",
         "voice": "Finn",
@@ -18,6 +19,7 @@
         "options": {}
     },
     "stationary_mode": false,
+    "display_simulator": true,
     "llm": {
         "provider": "gemini",
         "ollama_model": "gemma4:e4b",

@@ -1,3 +1,4 @@
+from display.display_state import DisplayState
 from input.console import SpeechConsole
 from input.input_state import InputState
 from input.recognizer import SpeechRecognizer
@@ -11,10 +12,11 @@ import threading
 # Keep ignoring the microphone for this long after the robot stops speaking, to let the room go quiet
 MUTE_TAIL_SECONDS = 0.3
 MUTE_POLL_SECONDS = 0.05
+ATTENTION_POLL_SECONDS = 0.05
 
 
 def start_threads(input_state: InputState, recognizer: SpeechRecognizer, wake_word: WakeWordFilter,
-                  output_state: Optional[OutputState] = None):
+                  output_state: Optional[OutputState] = None, display_state: Optional[DisplayState] = None):
     """
     Start listening to the microphone and the keyboard. The recognizer must already be loaded.
     """
@@ -46,6 +48,9 @@ def start_threads(input_state: InputState, recognizer: SpeechRecognizer, wake_wo
 
     if output_state:
         threading.Thread(target=mute_loop, args=(recognizer, output_state), name="input-mute").start()
+    if display_state:
+        threading.Thread(target=attention_loop, args=(console, wake_word, display_state),
+                         name="input-attention").start()
     threading.Thread(target=keyboard_loop, args=(input_state, console), name="input-keyboard").start()
 
 
@@ -66,6 +71,22 @@ def mute_loop(recognizer: SpeechRecognizer, output_state: OutputState):
             muted = should_mute
 
         time.sleep(MUTE_POLL_SECONDS)
+
+
+def attention_loop(console: SpeechConsole, wake_word: WakeWordFilter, display_state: DisplayState):
+    """
+    Show on the display when the robot is listening to someone who has said the wake word.
+    """
+    at_attention = False
+
+    while True:
+        # Either a line addressed to the robot is being spoken, or its name was just said and it is waiting for more
+        listening = console.active or wake_word.is_awaiting_line()
+        if listening != at_attention:
+            display_state.set_attention(listening)
+            at_attention = listening
+
+        time.sleep(ATTENTION_POLL_SECONDS)
 
 
 def keyboard_loop(input_state: InputState, console: SpeechConsole):

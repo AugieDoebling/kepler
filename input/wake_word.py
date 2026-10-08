@@ -37,6 +37,14 @@ class WakeWordFilter:
             window_seconds=listening_config.get("wake_word_window_seconds", DEFAULT_WINDOW_SECONDS),
         )
 
+    def is_awaiting_line(self, now: Optional[float] = None) -> bool:
+        """
+        True after the wake word was said on its own, while the next line would be accepted without it.
+        """
+        if now is None:
+            now = time.monotonic()
+        return now < self._awake_until
+
     def matches(self, text: str, now: Optional[float] = None) -> bool:
         """
         True if the text, which may still be being spoken, looks addressed to the robot. Changes nothing.

@@ -17,9 +17,13 @@ plays through `aplay`. Moonshine's own MicTranscriber is not used: it records
 through PortAudio, which Ubuntu builds with a PulseAudio backend that stops
 PortAudio from starting at all when no PulseAudio server is running, and this
 robot runs plain ALSA.
+
+On machines without `arecord` (macOS, for development) the microphone is read
+through PortAudio with the `sounddevice` package instead.
 """
 import fcntl
 import logging
+import queue
 import shutil
 import subprocess
 import threading
@@ -85,6 +89,8 @@ class SpeechRecognizer:
         self._transcriber: Optional[Transcriber] = None
         self._stream = None
         self._arecord: Optional[subprocess.Popen] = None
+        self._portaudio_stream = None
+        self._portaudio_queue: Optional[queue.Queue] = None
         self._capture_thread: Optional[threading.Thread] = None
         self._muted = False
 
@@ -130,7 +136,8 @@ class SpeechRecognizer:
         """
         stream = self._add_callbacks(on_line, on_partial)
         if not shutil.which("arecord"):
-            raise ListenError("Could not open the microphone: arecord was not found (sudo apt install alsa-utils)")
+            self._start_portaudio(stream)
+            return
 
         arecord = subprocess.Popen(
             ["arecord", "-q", "-D", self.device, "-f", "S16_LE", "-r", str(self.sample_rate), "-c", "1", "-t", "raw"],
@@ -156,6 +163,52 @@ class SpeechRecognizer:
         self._capture_thread.start()
         threading.Thread(target=self._arecord_log_loop, args=(arecord,), name="input-arecord-log", daemon=True).start()
 
+    def _start_portaudio(self, stream):
+        """
+        Open the microphone through PortAudio, for machines without ALSA.
+        """
+        try:
+            import sounddevice
+        except (ImportError, OSError) as e:
+            raise ListenError(
+                f"Could not open the microphone: arecord was not found, and sounddevice could not be used: {e}"
+            ) from e
+
+        # The ALSA name `default` means the system default microphone here, others are an index or a name
+        device = None if self.device == DEFAULT_DEVICE else self.device
+        if isinstance(device, str) and device.isdigit():
+            device = int(device)
+
+        audio_queue = queue.Queue()
+
+        def on_audio(in_data, frames, time, status):
+            # Runs on PortAudio's own thread, which must not be held up by a transcription pass
+            if status:
+                logging.warning("Microphone: %s", status)
+            audio_queue.put(in_data[:, 0].copy())
+
+        def open_stream(sample_rate):
+            return sounddevice.InputStream(samplerate=sample_rate, channels=1, dtype="float32",
+                                           device=device, callback=on_audio)
+
+        try:
+            try:
+                portaudio_stream = open_stream(self.sample_rate)
+            except sounddevice.PortAudioError:
+                # The microphone refuses this rate, use its own and let Moonshine convert
+                self.sample_rate = int(sounddevice.query_devices(device, "input")["default_samplerate"])
+                portaudio_stream = open_stream(self.sample_rate)
+            portaudio_stream.start()
+        except Exception as e:
+            raise ListenError(f"Could not open the microphone (device: {self.device}): {e}") from e
+
+        self._portaudio_stream = portaudio_stream
+        self._portaudio_queue = audio_queue
+        stream.start()
+        self._capture_thread = threading.Thread(
+            target=self._portaudio_capture_loop, args=(audio_queue, stream), name="input-capture", daemon=True)
+        self._capture_thread.start()
+
     def transcribe(self, samples: Sequence[float], sample_rate: int,
                    on_line: Callable[[TranscriptLine], None],
                    on_partial: Optional[Callable[[str], None]] = None, chunk_seconds: float = 0.1):
@@ -179,6 +232,12 @@ class SpeechRecognizer:
             arecord.terminate()
             arecord.wait()
             # Let a transcription pass that is under way finish before the stream goes
+            self._capture_thread.join()
+        if self._portaudio_stream:
+            self._portaudio_stream.close()
+            self._portaudio_stream = None
+            # Tells the capture thread to finish
+            self._portaudio_queue.put(None)
             self._capture_thread.join()
         if self._stream:
             self._stream.close()
@@ -207,6 +266,25 @@ class SpeechRecognizer:
 
         if self._arecord is arecord:
             logging.error("The microphone stopped, arecord exited with code %s", arecord.wait())
+
+    def _portaudio_capture_loop(self, audio_queue: queue.Queue, stream):
+        """
+        Pass what the microphone hears to Moonshine, the audio recorded during a transcription pass waits in the queue.
+        """
+        while (samples := audio_queue.get()) is not None:
+            # Take everything that is waiting as one piece, so a backlog costs one pass and not many
+            pieces = [samples]
+            while not audio_queue.empty():
+                piece = audio_queue.get()
+                if piece is None:
+                    return
+                pieces.append(piece)
+            if self._muted:
+                continue
+            try:
+                stream.add_audio(np.concatenate(pieces), self.sample_rate)
+            except Exception as e:
+                logging.error("Speech recognition failed: %s", e)
 
     def _arecord_log_loop(self, arecord: subprocess.Popen):
         # Read as it comes, so that arecord never blocks on a full pipe. Overruns are reported here.

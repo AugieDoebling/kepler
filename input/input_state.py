@@ -1,5 +1,6 @@
 import threading
 from typing import Optional
+from display.display_state import DisplayState
 from output.output_state import OutputState
 
 class InputState:
@@ -29,7 +30,8 @@ class InputState:
             return message
 
 
-def start_input(config: dict, output_state: Optional[OutputState] = None) -> Optional[InputState]:
+def start_input(config: dict, output_state: Optional[OutputState] = None,
+                display_state: Optional[DisplayState] = None) -> Optional[InputState]:
     """
     Start speech input if it is enabled in the config.
 
@@ -48,5 +50,6 @@ def start_input(config: dict, output_state: Optional[OutputState] = None) -> Opt
     recognizer.load()
 
     input_state = InputState()
-    input_thread.start_threads(input_state, recognizer, WakeWordFilter.from_config(config), output_state)
+    input_thread.start_threads(input_state, recognizer, WakeWordFilter.from_config(config), output_state,
+                               display_state)
     return input_state

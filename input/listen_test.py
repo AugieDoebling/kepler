@@ -16,6 +16,7 @@ repo root or from inside input/. Stop with Ctrl-C:
 import argparse
 import json
 import os
+import shutil
 import subprocess
 import sys
 import time
@@ -65,7 +66,12 @@ def main():
 
     if args.list_devices:
         # The names that --device accepts
-        return subprocess.run(["arecord", "-L"]).returncode
+        if shutil.which("arecord"):
+            return subprocess.run(["arecord", "-L"]).returncode
+        # Without ALSA the microphone is read through sounddevice, which takes an index or a name
+        import sounddevice
+        print(sounddevice.query_devices())
+        return 0
 
     wake_word = WakeWordFilter(args.wake_word, listening_config.get("wake_word_window_seconds", DEFAULT_WINDOW_SECONDS))
 

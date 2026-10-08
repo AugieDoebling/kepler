@@ -5,23 +5,29 @@ from .actions import Actions
 from .llm_provider import LlmProvider
 from .llm_state import LlmState
 from .llm_types import LlmError
+from display.display_state import DisplayState
 from input.input_state import InputState
 from output.output_state import OutputState
+from output.paced_print import print_at_speech_speed
 from typing import Optional
 
 # Stops a model that keeps calling tools from never handing the conversation back
 MAX_TOOL_ROUNDS = 5
 
 def start_thread(actions: Actions, llmState: LlmState, provider: LlmProvider,
-                 output_state: Optional[OutputState] = None, input_state: Optional[InputState] = None):
+                 output_state: Optional[OutputState] = None, input_state: Optional[InputState] = None,
+                 paced_print: bool = False, display_state: Optional[DisplayState] = None):
     """
     Create a thread that is responsible for running the LLM.
     """
-    llm_thread = threading.Thread(target=loop, args=(actions, llmState, provider, output_state, input_state))
+    llm_thread = threading.Thread(
+        target=loop,
+        args=(actions, llmState, provider, output_state, input_state, paced_print, display_state))
     llm_thread.start()
 
 def loop(actions: Actions, llmState: LlmState, provider: LlmProvider,
-         output_state: Optional[OutputState] = None, input_state: Optional[InputState] = None):
+         output_state: Optional[OutputState] = None, input_state: Optional[InputState] = None,
+         paced_print: bool = False, display_state: Optional[DisplayState] = None):
     logging.info("Starting LLM thread with provider %s", provider.name)
 
     tools = actions.get_actions()
@@ -35,6 +41,9 @@ def loop(actions: Actions, llmState: LlmState, provider: LlmProvider,
             time.sleep(1)
             continue
 
+        # The display shows a loader while the robot is thinking
+        if display_state:
+            display_state.set_loading(True)
         try:
             response = provider.chat(messages, tools)
         except LlmError as e:
@@ -42,6 +51,9 @@ def loop(actions: Actions, llmState: LlmState, provider: LlmProvider,
             # TODO: Call output state
             print("(I'm having trouble thinking right now.)")
             response = None
+        finally:
+            if display_state:
+                display_state.set_loading(False)
 
         logging.debug("LLM response: %s", response)
 
@@ -49,13 +61,17 @@ def loop(actions: Actions, llmState: LlmState, provider: LlmProvider,
             llmState.add_message(response.message, require_response=False)
 
             if response.message.content:
-                print(response.message.content)
+                if paced_print:
+                    # Stands in for speech, so the reply takes about as long to appear as it would to say
+                    print_at_speech_speed(response.message.content)
+                else:
+                    print(response.message.content)
                 if output_state:
                     output_state.queue_output(response.message.content)
 
             if response.message.tool_calls:
                 for tool_call in response.message.tool_calls:
-                    print('tool call - ', tool_call.name)
+                    print('tool call - ', tool_call.name, tool_call.arguments)
                     try:
                         action_outcome = actions.call_action(tool_call.name, tool_call.arguments)
                     except Exception as e:
