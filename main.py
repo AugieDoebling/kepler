@@ -3,6 +3,8 @@ from datetime import datetime
 from display import display_thread
 from display.display_state import DisplayState
 from display.simulator import start_simulator
+from head import head_thread
+from head.head_state import HeadState
 from hexarth import hexarth_thread
 from hexarth.hexarth_state import HexarthState
 from input.input_state import start_input
@@ -96,7 +98,8 @@ def main():
 
     display_state = DisplayState()
     hexarth_state = HexarthState()
-    actions = Actions(display_state, hexarth_state)
+    head_state = HeadState()
+    actions = Actions(display_state, hexarth_state, head_state)
     llm_provider = create_provider(config)
     output_state = start_output(config, display_state)
     input_state = start_input(config, output_state, display_state)
@@ -111,6 +114,7 @@ def main():
                             display_state)
     display_thread.start_thread(display_state, start_simulator(config))
     hexarth_thread.start_thread(hexarth_state, stationary_mode)
+    head_thread.start_thread(head_state, stationary_mode)
     logging.info("Startup finished, all threads started")
     # TODO: Add memory thread
 
