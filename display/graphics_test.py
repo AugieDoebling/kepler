@@ -11,7 +11,7 @@ FRAME_BUFFER = []
 def render_planet_eye(planet_eye_state: PlanetEyeScenario):
    base_image, draw = graphics.new_frame()
 
-   graphics.draw_eye(base_image, 35, 15, 160)
+   graphics.draw_eye(base_image, 35, 15, 37, 160)
 
    if planet_eye_state.loader.should_draw_loader():
       loader = planet_eye_state.loader

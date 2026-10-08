@@ -5,7 +5,7 @@ from .actions import Actions
 from .llm_provider import LlmProvider
 from .llm_state import LlmState
 from .llm_types import LlmError
-from display.display_state import DisplayState
+from display.display_state import DisplayState, EyeState
 from input.input_state import InputState
 from output.output_state import OutputState
 from output.paced_print import print_at_speech_speed
@@ -64,12 +64,12 @@ def loop(actions: Actions, llmState: LlmState, provider: LlmProvider,
                 if paced_print:
                     # Stands in for speech, so the reply takes about as long to appear as it would to say
                     if display_state:
-                        display_state.set_speaking(True)
+                        display_state.set_eye_state(EyeState.SPEAKING)
                     try:
                         print_at_speech_speed(response.message.content)
                     finally:
                         if display_state:
-                            display_state.set_speaking(False)
+                            display_state.set_eye_state(EyeState.REGULAR)
                 else:
                     print(response.message.content)
                 if output_state:

@@ -109,13 +109,13 @@ def blend_colors(from_color: str, to_color: str, amount: float):
    return '#{:02X}{:02X}{:02X}'.format(*(round(a + (b - a) * amount) for a, b in zip(start, end)))
 
 
-def draw_eye(base_img, rotation, iris_radius, width=160, color='#4937A2'):
+def draw_eye(base_img, rotation, iris_radius, pupil_radius, width=160, color='#4937A2'):
    eye_img = Image.linear_gradient('L').resize((width, width))
    eye_img = eye_img.rotate(rotation)
    eye_img = ImageOps.colorize(eye_img, black=color, white=get_shade(color))
 
 
-   eye_mask = create_radial_alpha_mask(width, 37, iris_radius)
+   eye_mask = create_radial_alpha_mask(width, pupil_radius, iris_radius)
    purple_box = get_centered_bounding_box((width, width))
 
    eye_img.putalpha(eye_mask)
@@ -177,7 +177,7 @@ def new_frame():
 def test_graphics():
    base_image, draw = new_frame()
 
-   draw_eye(base_image, 35, 15, 160)
+   draw_eye(base_image, 35, 15, 37, 160)
 
    draw_planet_orbit(draw, 190, 210, 10, '#DA6849')
    draw_planet_orbit(draw, 230, 85, 5, '#0277BD')

@@ -1,4 +1,4 @@
-from display.display_state import DisplayState
+from display.display_state import DisplayState, EyeState
 from output.audio_out import PcmPlayer
 from output.output_state import OutputState
 from output.speech import CHANNELS, SAMPLE_RATE, SpeechSynthesizer
@@ -45,8 +45,8 @@ def speak(synthesizer: SpeechSynthesizer, text: str, display_state: Optional[Dis
             for chunk in synthesizer.stream(text):
                 # The display shows speaking from the first sound, not while waiting for the speech service
                 if display_state:
-                    display_state.set_speaking(True)
+                    display_state.set_eye_state(EyeState.SPEAKING)
                 player.write(chunk)
     finally:
         if display_state:
-            display_state.set_speaking(False)
+            display_state.set_eye_state(EyeState.REGULAR)
