@@ -8,8 +8,15 @@ def calc_degrees_progressed(seconds_elapsed: float, rpm_speed: float):
    rotations = rpm_speed * minutes_elapsed
    return rotations * 360
 
+EYE_COLOR = '#4937A2'
+SPEAKING_EYE_COLOR = '#679436'
+EYE_COLOR_FADE_SECONDS = 0.4
+
 class PlanetEyeScenario:
    def __init__(self):
+      self.eye_color = EYE_COLOR
+      # 0 is the usual color and 1 is the speaking color, it moves between them over the fade time
+      self.speaking_amount = 0.0
       self.planets = [
          Planet(8, 160, 8, '#B71C1C'),
          Planet(210, 190, 12, '#DA6849'),
@@ -27,9 +34,16 @@ class PlanetEyeScenario:
          planet.set_attention(display_state.at_attention)
       self.loader.set_loading(display_state.is_loading)
 
+      fade_step = seconds_elapsed / EYE_COLOR_FADE_SECONDS
+      if display_state.is_speaking:
+         self.speaking_amount = min(1.0, self.speaking_amount + fade_step)
+      else:
+         self.speaking_amount = max(0.0, self.speaking_amount - fade_step)
+      self.eye_color = graphics.blend_colors(EYE_COLOR, SPEAKING_EYE_COLOR, self.speaking_amount)
+
    def get_frame(self):
       base_image, draw = graphics.new_frame()
-      graphics.draw_eye(base_image, 35, 15, 160)
+      graphics.draw_eye(base_image, 35, 15, 160, color=self.eye_color)
 
       if self.loader.should_draw_loader():
          graphics.draw_loader(draw, self.loader.radius, self.loader.width, self.loader.segments, self.loader.buffer, self.loader.position, self.loader.trans_in, self.loader.trans_out, self.loader.trans_out_roller)

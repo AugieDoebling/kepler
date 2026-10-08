@@ -72,7 +72,7 @@ def main():
     hexarth_state = HexarthState()
     actions = Actions(display_state, hexarth_state)
     llm_provider = create_provider(config)
-    output_state = start_output(config)
+    output_state = start_output(config, display_state)
     input_state = start_input(config, output_state, display_state)
     llm_state = LlmState()
 

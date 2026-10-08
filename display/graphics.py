@@ -1,4 +1,5 @@
-from PIL import Image, ImageDraw, ImageOps
+from PIL import Image, ImageColor, ImageDraw, ImageOps
+import colorsys
 import numpy as np
 import math
 
@@ -79,10 +80,39 @@ def create_radial_alpha_mask(width, pupil_radius, iris_radius):
    # Return as a Pillow Image in 'L' (luminance/grayscale) mode
    return Image.fromarray(alpha_mask_8bit, mode='L')
 
-def draw_eye(base_img, rotation, iris_radius, width=160):
+# How the dark end of the eye's gradient relates to its main color, measured from '#4937A2' and '#30224B'
+SHADE_HUE_SHIFT_DEGREES = 10.5
+SHADE_SATURATION_SCALE = 0.83
+SHADE_BRIGHTNESS_SCALE = 0.463
+
+def get_shade(color: str):
+   """
+   The darker, slightly duller color that the eye fades to, worked out from its main color.
+   """
+   red, green, blue = ImageColor.getrgb(color)[:3]
+   hue, saturation, brightness = colorsys.rgb_to_hsv(red / 255, green / 255, blue / 255)
+
+   shade = colorsys.hsv_to_rgb(
+      (hue + SHADE_HUE_SHIFT_DEGREES / 360) % 1.0,
+      saturation * SHADE_SATURATION_SCALE,
+      brightness * SHADE_BRIGHTNESS_SCALE,
+   )
+   return '#{:02X}{:02X}{:02X}'.format(*(round(channel * 255) for channel in shade))
+
+
+def blend_colors(from_color: str, to_color: str, amount: float):
+   """
+   The color part way between two colors, 0 is the first color and 1 is the second.
+   """
+   start = ImageColor.getrgb(from_color)[:3]
+   end = ImageColor.getrgb(to_color)[:3]
+   return '#{:02X}{:02X}{:02X}'.format(*(round(a + (b - a) * amount) for a, b in zip(start, end)))
+
+
+def draw_eye(base_img, rotation, iris_radius, width=160, color='#4937A2'):
    eye_img = Image.linear_gradient('L').resize((width, width))
    eye_img = eye_img.rotate(rotation)
-   eye_img = ImageOps.colorize(eye_img, black='#4937A2', white='#30224B')
+   eye_img = ImageOps.colorize(eye_img, black=color, white=get_shade(color))
 
 
    eye_mask = create_radial_alpha_mask(width, 37, iris_radius)

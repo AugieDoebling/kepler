@@ -63,7 +63,13 @@ def loop(actions: Actions, llmState: LlmState, provider: LlmProvider,
             if response.message.content:
                 if paced_print:
                     # Stands in for speech, so the reply takes about as long to appear as it would to say
-                    print_at_speech_speed(response.message.content)
+                    if display_state:
+                        display_state.set_speaking(True)
+                    try:
+                        print_at_speech_speed(response.message.content)
+                    finally:
+                        if display_state:
+                            display_state.set_speaking(False)
                 else:
                     print(response.message.content)
                 if output_state:

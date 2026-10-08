@@ -4,6 +4,7 @@ class DisplayState:
     def __init__(self):
         self.is_loading = False
         self.at_attention = False
+        self.is_speaking = False
         self._lock = threading.Lock()
 
     def set_attention(self, attention: bool):
@@ -13,5 +14,9 @@ class DisplayState:
     def set_loading(self, loading: bool):
         with self._lock:
             self.is_loading = loading
+
+    def set_speaking(self, speaking: bool):
+        with self._lock:
+            self.is_speaking = speaking
         
     

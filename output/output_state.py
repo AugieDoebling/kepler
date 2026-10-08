@@ -1,5 +1,6 @@
 import threading
 from typing import Optional
+from display.display_state import DisplayState
 
 class OutputState:
     def __init__(self):
@@ -36,7 +37,7 @@ class OutputState:
             return self._unfinished > 0
 
 
-def start_output(config: dict) -> Optional[OutputState]:
+def start_output(config: dict, display_state: Optional[DisplayState] = None) -> Optional[OutputState]:
     """
     Start speech output if it is enabled in the config.
 
@@ -50,5 +51,5 @@ def start_output(config: dict) -> Optional[OutputState]:
     from output.speech import SpeechSynthesizer
 
     output_state = OutputState()
-    output_thread.start_thread(output_state, SpeechSynthesizer.from_config(config))
+    output_thread.start_thread(output_state, SpeechSynthesizer.from_config(config), display_state)
     return output_state
