@@ -27,6 +27,7 @@ import queue
 import shutil
 import subprocess
 import threading
+import time
 from typing import Callable, Optional, Sequence
 import numpy as np
 from moonshine_voice import Error, LineCompleted, LineTextChanged, Transcriber
@@ -113,10 +114,14 @@ class SpeechRecognizer:
         """
         Download the model if it is not cached yet, and open it. Blocks until done.
         """
+        logging.info("Loading listening model %s for language %s, update interval %s, options %s",
+                     self.model, self.language, self.update_interval, self.options)
+        load_start = time.perf_counter()
         try:
             model_path, model_arch = get_model_for_language(self.language, self._model_arch)
             self._transcriber = Transcriber(str(model_path), model_arch, options=self.options or None)
             self._stream = self._transcriber.create_stream(self.update_interval)
+            logging.info("Listening model loaded from %s in %.1fs", model_path, time.perf_counter() - load_start)
         except Exception as e:
             raise ListenError(
                 f"Could not load the '{self.model}' listening model for language '{self.language}': {e}"
@@ -136,8 +141,11 @@ class SpeechRecognizer:
         """
         stream = self._add_callbacks(on_line, on_partial)
         if not shutil.which("arecord"):
+            logging.info("arecord not found, opening the microphone through sounddevice")
             self._start_portaudio(stream)
             return
+
+        logging.info("Opening the microphone with arecord, device %s at %s Hz", self.device, self.sample_rate)
 
         arecord = subprocess.Popen(
             ["arecord", "-q", "-D", self.device, "-f", "S16_LE", "-r", str(self.sample_rate), "-c", "1", "-t", "raw"],
@@ -194,7 +202,8 @@ class SpeechRecognizer:
         try:
             try:
                 portaudio_stream = open_stream(self.sample_rate)
-            except sounddevice.PortAudioError:
+            except sounddevice.PortAudioError as e:
+                logging.info("The microphone refused %s Hz (%s), using its own rate", self.sample_rate, e)
                 # The microphone refuses this rate, use its own and let Moonshine convert
                 self.sample_rate = int(sounddevice.query_devices(device, "input")["default_samplerate"])
                 portaudio_stream = open_stream(self.sample_rate)
@@ -202,6 +211,8 @@ class SpeechRecognizer:
         except Exception as e:
             raise ListenError(f"Could not open the microphone (device: {self.device}): {e}") from e
 
+        logging.info("Microphone open through sounddevice, device %s at %s Hz",
+                     sounddevice.query_devices(device, "input")["name"], self.sample_rate)
         self._portaudio_stream = portaudio_stream
         self._portaudio_queue = audio_queue
         stream.start()
@@ -227,6 +238,7 @@ class SpeechRecognizer:
         self._muted = muted
 
     def close(self):
+        logging.info("Closing the microphone and the listening model")
         if self._arecord:
             arecord, self._arecord = self._arecord, None
             arecord.terminate()

@@ -8,7 +8,10 @@ from hexarth.hexarth_state import HexarthState
 from input.input_state import start_input
 import json
 import logging
+import platform
 import subprocess
+import sys
+import threading
 from dotenv import load_dotenv
 from llm import llm_thread
 from llm.actions import Actions
@@ -37,6 +40,17 @@ def configure_logging():
     for noisy_logger in ("anthropic", "google_genai", "httpx", "httpx2", "httpcore", "httpcore2"):
         logging.getLogger(noisy_logger).setLevel(logging.WARNING)
 
+def log_uncaught_thread_exceptions():
+    """
+    Send the traceback of a thread that dies from an exception to the log file, not only to the terminal.
+    """
+    def log_thread_exception(args):
+        thread_name = args.thread.name if args.thread else "unknown"
+        logging.critical("Thread %s died from an uncaught exception", thread_name,
+                         exc_info=(args.exc_type, args.exc_value, args.exc_traceback))
+
+    threading.excepthook = log_thread_exception
+
 def load_config():
     if not os.path.exists("kepler_config.json"):
         raise FileNotFoundError("kepler_config.json not found. Please create it.")
@@ -56,13 +70,25 @@ def log_startup_info():
     print("Changed files:", changed_summary)
     logging.info("Changed files: " + changed_summary)
 
+    logging.info("Python %s on %s", sys.version.split()[0], platform.platform())
+
+def log_config(config: dict):
+    # The connection string holds a password
+    shown = dict(config)
+    if shown.get("database_connection_string"):
+        shown["database_connection_string"] = "(set)"
+    logging.info("Config: %s", json.dumps(shown))
+
 def main():
     # First, so that a failure in anything after it reaches the log file
     configure_logging()
+    log_uncaught_thread_exceptions()
+    logging.info("Kepler starting")
     load_dotenv()
     config = load_config()
 
     log_startup_info()
+    log_config(config)
 
     stationary_mode = config.get("stationary_mode", False)
     if stationary_mode:
@@ -78,11 +104,14 @@ def main():
 
     # Only when there is no speech to set the pace
     paced_print = config.get("print_output_at_speech_speed", False) and output_state is None
+    logging.info("Speech output %s, speech input %s, paced printing %s",
+                 "on" if output_state else "off", "on" if input_state else "off", "on" if paced_print else "off")
 
     llm_thread.start_thread(actions, llm_state, llm_provider, output_state, input_state, paced_print,
                             display_state)
     display_thread.start_thread(display_state, start_simulator(config))
     hexarth_thread.start_thread(hexarth_state, stationary_mode)
+    logging.info("Startup finished, all threads started")
     # TODO: Add memory thread
 
 

@@ -1,3 +1,4 @@
+import logging
 import uuid
 import ollama
 from .llm_provider import BOOT_PROMPT
@@ -21,6 +22,9 @@ class OllamaProvider:
             raise LlmUnavailableError(f"Could not reach Ollama: {e}") from e
         except ollama.ResponseError as e:
             raise LlmRequestError(f"Ollama rejected the request: {e}") from e
+
+        logging.debug("Ollama %s: done_reason=%s, prompt_tokens=%s, output_tokens=%s", self.model,
+                      response.done_reason, response.prompt_eval_count, response.eval_count)
 
         tool_calls = [
             # Ollama tool calls have no id, so make one up for the other providers' benefit.

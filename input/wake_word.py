@@ -11,6 +11,7 @@ Saying only the wake word opens a short window in which the next line is
 accepted without it, for "Kepler ... <pause> ... what time is it?".
 """
 import difflib
+import logging
 import re
 import time
 from typing import Optional
@@ -73,6 +74,7 @@ class WakeWordFilter:
             if all(matches):
                 # Only the wake word was said, so wait for what comes next
                 self._awake_until = now + self.window_seconds
+                logging.debug("Wake word heard on its own, the next line within %ss is accepted", self.window_seconds)
                 return None
             self._awake_until = 0.0
             return text

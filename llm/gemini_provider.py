@@ -54,6 +54,11 @@ class GeminiProvider:
             raise LlmUnavailableError(f"Could not reach Gemini: {e}") from e
 
         candidate = response.candidates[0] if response.candidates else None
+        usage = response.usage_metadata
+        logging.debug("Gemini %s: finish_reason=%s, prompt_tokens=%s, output_tokens=%s", self.model,
+                      candidate.finish_reason if candidate else None,
+                      usage.prompt_token_count if usage else None,
+                      usage.candidates_token_count if usage else None)
         content = candidate.content if candidate else None
         parts = (content.parts or []) if content else []
 

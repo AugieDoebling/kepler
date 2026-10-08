@@ -11,14 +11,13 @@ def start_thread(hexarth_state: HexarthState, stationary_mode: bool = False):
     """
     Create a thread that is responsible for controlling hexarth.
     """
-    hexarth_thread = threading.Thread(target=loop, args=(hexarth_state, stationary_mode))
+    hexarth_thread = threading.Thread(target=loop, args=(hexarth_state, stationary_mode), name="hexarth")
     hexarth_thread.start()
 
 
 def loop(hexarth_state: HexarthState, stationary_mode: bool = False):
     logging.info("Starting hexarth thread, stationary mode %s", "on" if stationary_mode else "off")
 
-    last_update_time = time.perf_counter()
     try:
         hexbot = HexBot(hexarth_state, stationary_mode)
     except Exception:
@@ -26,10 +25,9 @@ def loop(hexarth_state: HexarthState, stationary_mode: bool = False):
         return
 
     while True:
+        update_start_time = time.perf_counter()
         hexbot.update()
 
-        current_time = time.perf_counter()
-        sleep_time = max(0, UPDATE_INTERVAL - (current_time - last_update_time))
-        last_update_time = current_time
-
-        time.sleep(sleep_time)
+        # Only the time the update itself took comes off the wait, so updates stay one interval apart
+        update_seconds = time.perf_counter() - update_start_time
+        time.sleep(max(0, UPDATE_INTERVAL - update_seconds))

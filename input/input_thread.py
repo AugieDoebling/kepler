@@ -30,6 +30,8 @@ def start_threads(input_state: InputState, recognizer: SpeechRecognizer, wake_wo
             console.show(text)
 
     def on_line(line):
+        logging.debug("Line completed after %.1fs of speech, last transcription pass took %sms: %s",
+                      line.duration, line.last_transcription_latency_ms, line.text)
         text = wake_word.filter(line.text)
         if text is None:
             logging.debug("Heard, but not addressed to the robot: %s", line.text)
@@ -67,6 +69,7 @@ def mute_loop(recognizer: SpeechRecognizer, output_state: OutputState):
 
         should_mute = time.monotonic() < unmute_at
         if should_mute != muted:
+            logging.debug("Microphone %s", "muted while speaking" if should_mute else "unmuted")
             recognizer.mute(should_mute)
             muted = should_mute
 
@@ -101,5 +104,8 @@ def keyboard_loop(input_state: InputState, console: SpeechConsole):
             return
 
         # The keyboard is paused while a spoken line is coming in
-        if not console.active:
+        if console.active:
+            logging.debug("Typed line thrown away, a spoken line was coming in: %s", typed)
+        else:
+            logging.info("Typed: %s", typed)
             input_state.queue_message(typed)

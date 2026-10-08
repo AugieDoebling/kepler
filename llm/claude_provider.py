@@ -40,6 +40,9 @@ class ClaudeProvider:
         except anthropic.APIConnectionError as e:
             raise LlmUnavailableError(f"Could not reach Claude: {e}") from e
 
+        logging.debug("Claude %s: stop_reason=%s, input_tokens=%s, output_tokens=%s", self.model,
+                      response.stop_reason, response.usage.input_tokens, response.usage.output_tokens)
+
         if response.stop_reason in ("max_tokens", "refusal"):
             logging.warning("Claude stopped early, stop_reason=%s", response.stop_reason)
 

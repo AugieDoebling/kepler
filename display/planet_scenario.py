@@ -41,7 +41,6 @@ class PlanetEyeScenario:
       self.loader = Loader()
 
    def update(self, display_state: DisplayState, seconds_elapsed: float):
-      logging.debug(f"Updating planet eye after {seconds_elapsed:0.2f} seconds")
       for planet in self.planets:
          planet.update(seconds_elapsed)
       self.loader.update(seconds_elapsed)

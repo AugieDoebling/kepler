@@ -23,6 +23,7 @@ class HexBot:
         # Imported here so that pyserial is only needed when the robot is really driven
         import serial
 
+        logging.info("Opening serial port %s at %s baud", SERIAL_PORT, SERIAL_BAUD)
         self.serial = serial.Serial(SERIAL_PORT, SERIAL_BAUD, write_timeout=SERIAL_WRITE_TIMEOUT_SECONDS)
         # The ESP32 echoes every command back as text until it is told not to
         self.send_command(commands.set_debug_print(False))
@@ -59,18 +60,19 @@ class HexBot:
             self.get_next_action()
 
         if self.current_action is None:
-            logging.info("No actions enqueued.")
             return
 
-        logging.info(f"New command {self.current_action['command']}")
+        # Sent again on every update, the ESP32 stops by itself when it goes 3 seconds without a command
         command = self.get_command(self.current_action["command"], self.current_action["args"])
         self.send_command(command)
             
 
     def get_next_action(self):
-        logging.info("Getting next action")
         self.current_action = self.hexarth_state.pop_action()
         self.current_action_start = time.perf_counter()
+        if self.current_action is not None:
+            logging.info(f"Starting command {self.current_action['command']} {self.current_action['args']} "
+                         f"for {self.current_action['duration_ms']}ms")
     
     def get_command(self, command: str, args: dict) -> dict:
         if command == "go_to_initial_position":

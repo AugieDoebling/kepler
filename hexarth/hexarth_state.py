@@ -1,3 +1,4 @@
+import logging
 import threading
 
 class HexarthState:
@@ -15,6 +16,8 @@ class HexarthState:
         """
         with self._lock:
             self.queued_actions.append({"command": command, "args": args, "duration_ms": duration_ms})
+            logging.info("Queued action %s %s for %sms, %d now waiting", command, args, duration_ms,
+                         len(self.queued_actions))
         
     def pop_action(self):
         """Get and remove the first queued action"""

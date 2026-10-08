@@ -149,6 +149,7 @@ class DisplaySimulator:
         handler.end_headers()
         handler.close_connection = True
 
+        logging.info("Display simulator: a browser started watching")
         sent_frame_number = 0
         try:
             while True:
@@ -165,7 +166,7 @@ class DisplaySimulator:
                 handler.wfile.write(b"\r\n")
         except (BrokenPipeError, ConnectionResetError):
             # The browser tab was closed
-            pass
+            logging.info("Display simulator: a browser stopped watching")
 
     def _receive_frame(self, handler: BaseHTTPRequestHandler):
         length = int(handler.headers.get("Content-Length", 0))
@@ -216,6 +217,7 @@ class RemoteDisplaySimulator:
 
     def _send_loop(self):
         connection = None
+        connected = True
         while True:
             with self._condition:
                 self._condition.wait_for(lambda: self._frame is not None)
@@ -227,9 +229,15 @@ class RemoteDisplaySimulator:
                     connection = http.client.HTTPConnection(self.host, self.port, timeout=REMOTE_TIMEOUT_SECONDS)
                 connection.request("POST", "/frame", body=encode_frame(frame), headers={"Content-Type": "image/jpeg"})
                 connection.getresponse().read()
+                if not connected:
+                    logging.info("Reconnected to the display simulator at %s", self.url)
+                    connected = True
             except (OSError, http.client.HTTPException) as e:
                 # The simulator was stopped. Keep trying, it may be started again.
-                logging.debug("Could not send a frame to the display simulator: %s", e)
+                # Logged once per outage, not on every retry
+                if connected:
+                    logging.warning("Lost the display simulator at %s, retrying: %s", self.url, e)
+                    connected = False
                 if connection:
                     connection.close()
                 connection = None

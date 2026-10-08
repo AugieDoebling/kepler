@@ -1,3 +1,4 @@
+import logging
 import os
 from datetime import datetime
 from typing import Protocol
@@ -60,6 +61,7 @@ def require_api_key(env_var: str, provider_name: str):
 def create_provider(config: dict) -> LlmProvider:
     llm_config = config.get("llm", {})
     provider_name = llm_config.get("provider", DEFAULT_PROVIDER)
+    logging.info("Creating LLM provider '%s'. Boot prompt: %s", provider_name, BOOT_PROMPT)
 
     # Providers are imported lazily so that only the selected provider's package needs to be installed.
     if provider_name == "ollama":

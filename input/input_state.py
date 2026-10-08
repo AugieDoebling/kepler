@@ -1,3 +1,4 @@
+import logging
 import threading
 from typing import Optional
 from display.display_state import DisplayState
@@ -39,6 +40,7 @@ def start_input(config: dict, output_state: Optional[OutputState] = None,
     """
     if not config.get("audio_input", False):
         return None
+    logging.info("Starting speech input")
 
     # Imported here so that the listening dependencies are only needed when audio input is on
     from input import input_thread

@@ -21,6 +21,7 @@ streamed.
 """
 from __future__ import annotations
 
+import logging
 import os
 import shutil
 import subprocess
@@ -71,7 +72,11 @@ class PcmPlayer:
     def __exit__(self, *exc) -> None:
         if self._proc and self._proc.stdin:
             self._proc.stdin.close()   # signal end-of-stream to aplay
-            self._proc.wait()          # block until playback finishes
+            exit_code = self._proc.wait()   # block until playback finishes
+            if exit_code != 0:
+                # aplay prints the reason on the terminal
+                logging.error("aplay exited with code %s, the audio may not have played: %s",
+                              exit_code, " ".join(self._args))
         self._proc = None
 
         if self._buffer:
@@ -88,7 +93,9 @@ class PcmPlayer:
                 wf.setsampwidth(2)
                 wf.setframerate(self._rate)
                 wf.writeframes(bytes(self._buffer))
-            subprocess.run(["afplay", path])
+            exit_code = subprocess.run(["afplay", path]).returncode
+            if exit_code != 0:
+                logging.error("afplay exited with code %s, the audio may not have played", exit_code)
         finally:
             os.remove(path)
 

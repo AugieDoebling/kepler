@@ -1,3 +1,4 @@
+import logging
 import os
 import threading
 from .llm_types import Message
@@ -12,7 +13,9 @@ def load_system_prompt(path: str = SYSTEM_PROMPT_PATH) -> Message:
         raise FileNotFoundError(f"System prompt file not found: {path}")
 
     with open(path, "r") as f:
-        return Message(role="system", content=f.read().strip())
+        content = f.read().strip()
+    logging.info("Loaded the system prompt from %s, %d characters", path, len(content))
+    return Message(role="system", content=content)
 
 class LlmState:
     def __init__(self):

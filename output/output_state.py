@@ -1,3 +1,4 @@
+import logging
 import threading
 from typing import Optional
 from display.display_state import DisplayState
@@ -50,6 +51,7 @@ def start_output(config: dict, display_state: Optional[DisplayState] = None) -> 
     from output import output_thread
     from output.speech import SpeechSynthesizer
 
+    logging.info("Starting speech output")
     output_state = OutputState()
     output_thread.start_thread(output_state, SpeechSynthesizer.from_config(config), display_state)
     return output_state
