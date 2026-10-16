@@ -42,7 +42,7 @@ class HexBot:
 
     def show_startup_screen(self):
         # The screen on the ESP32 has four lines, 0 to 3. The last is left empty.
-        lines = ["Kepler", f"Git hash: {get_git_hash()}", "All Systems Go"]
+        lines = ["Kepler", f"v. {get_git_hash()}", "All Systems Go"]
         for line_number, text in enumerate(lines):
             self.send_command(commands.write_oled_text(line_number, text, centered=True))
 
