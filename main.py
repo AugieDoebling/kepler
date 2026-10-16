@@ -5,6 +5,7 @@ from display.display_state import DisplayState
 from display.simulator import start_simulator
 from head import head_thread
 from head.head_state import HeadState
+from hardware import hardware_thread
 from hexarth import hexarth_thread
 from hexarth.hexarth_state import HexarthState
 from input.input_state import start_input
@@ -115,6 +116,7 @@ def main():
     display_thread.start_thread(display_state, start_simulator(config))
     hexarth_thread.start_thread(hexarth_state, stationary_mode)
     head_thread.start_thread(head_state, stationary_mode)
+    hardware_thread.start_thread()
     logging.info("Startup finished, all threads started")
     # TODO: Add memory thread
 
