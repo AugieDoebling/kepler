@@ -1,7 +1,7 @@
 import os
 from datetime import datetime
 from display import display_thread
-from display.display_state import DisplayState
+from display.display_state import DisplayState, EyeState
 from head import head_thread
 from head.head_state import HeadState
 from hardware import hardware_thread
@@ -15,6 +15,7 @@ import signal
 import subprocess
 import sys
 import threading
+import time
 from dotenv import load_dotenv
 from llm import llm_thread
 from llm.actions import Actions
@@ -111,9 +112,11 @@ def main():
     logging.info("Speech output %s, speech input %s, paced printing %s",
                  "on" if output_state else "off", "on" if input_state else "off", "on" if paced_print else "off")
 
+    display_thread.start_thread(display_state, config)
+    run_startup_checks(display_state, config)
+
     llm_thread.start_thread(actions, llm_state, llm_provider, output_state, input_state, paced_print,
                             display_state)
-    display_thread.start_thread(display_state, config)
     hexarth_thread.start_thread(hexarth_state, stationary_mode)
     head_thread.start_thread(head_state, stationary_mode)
     hardware_thread.start_thread()
@@ -122,6 +125,20 @@ def main():
 
     wait_for_stop_request()
     shut_down()
+
+def run_startup_checks(display_state: DisplayState, config: dict):
+    startup_begin = time.perf_counter()
+
+    # TODO: Add internet access check
+    # TODO: Add hexbot comm check (if not in stationary)
+    # TODO: Add head move check (if not in stationary, move all the way up, down, right and left, then return to center)
+
+    # Wait at least five seconds, counting the time the checks took
+    elapsed = time.perf_counter() - startup_begin
+    time.sleep(max(0, 5 - elapsed))
+    
+    display_state.set_eye_state(EyeState.REGULAR)
+
 
 def wait_for_stop_request():
     """
