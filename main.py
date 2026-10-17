@@ -2,7 +2,6 @@ import os
 from datetime import datetime
 from display import display_thread
 from display.display_state import DisplayState
-from display.simulator import start_simulator
 from head import head_thread
 from head.head_state import HeadState
 from hardware import hardware_thread
@@ -113,7 +112,7 @@ def main():
 
     llm_thread.start_thread(actions, llm_state, llm_provider, output_state, input_state, paced_print,
                             display_state)
-    display_thread.start_thread(display_state, start_simulator(config))
+    display_thread.start_thread(display_state)
     hexarth_thread.start_thread(hexarth_state, stationary_mode)
     head_thread.start_thread(head_state, stationary_mode)
     hardware_thread.start_thread()

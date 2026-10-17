@@ -3,8 +3,10 @@ import time
 import threading
 from display.display_state import DisplayState
 from display.planet_scenario import PlanetEyeScenario
-from display.simulator import DisplaySimulator
-from typing import Optional
+from display.screen import start_screen
+from display.simulator import start_simulator
+from typing import Optional, Protocol
+from PIL import Image
 
 FRAME_RATE = 30
 FRAME_INTERVAL = 1.0 / FRAME_RATE
@@ -13,17 +15,27 @@ FRAME_INTERVAL = 1.0 / FRAME_RATE
 SLOW_FRAME_FACTOR = 3
 SLOW_FRAME_LOG_INTERVAL_SECONDS = 10.0
 
-def start_thread(display_state: DisplayState, simulator: Optional[DisplaySimulator] = None):
+
+class FrameOutput(Protocol):
+    """Somewhere to show frames, the real screen or the simulator."""
+
+    def show(self, image: Image.Image): ...
+
+
+def start_thread(display_state: DisplayState):
     """
     Create a thread that is responsible for displaying the planet eye.
     """
-    display_thread = threading.Thread(target=loop, args=(display_state, simulator), name="display")
+    # The simulator stands in for the screen when it is on
+    frame_output = start_simulator(config) or start_screen()
+
+    display_thread = threading.Thread(target=loop, args=(display_state, frame_output), name="display")
     display_thread.start()
 
 
-def loop(display_state: DisplayState, simulator: Optional[DisplaySimulator] = None):
+def loop(display_state: DisplayState, frame_output: Optional[FrameOutput] = None):
     logging.info("Starting display thread at %d frames a second, frames go to %s",
-                 FRAME_RATE, type(simulator).__name__ if simulator else "nowhere")
+                 FRAME_RATE, type(frame_output).__name__ if frame_output else "nowhere")
     
     scenario = PlanetEyeScenario()
     last_frame_render_time = time.perf_counter()
@@ -36,11 +48,7 @@ def loop(display_state: DisplayState, simulator: Optional[DisplaySimulator] = No
         scenario.update(display_state, time_elapsed_since_last_update)
 
         frame_image = scenario.get_frame()
-        if simulator:
-            simulator.show(frame_image)
-        else:
-            # TODO: Send frame to display
-            pass
+        frame_output.show(frame_image)
 
         frame_generated_time = time.perf_counter()
         last_frame_render_time = frame_generated_time
