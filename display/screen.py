@@ -43,6 +43,9 @@ class Screen:
         )
         self._condition = threading.Condition()
         self._frame: Optional[Image.Image] = None
+        # Held while talking to the panel, so clearing it never interleaves with a frame being sent
+        self._write_lock = threading.Lock()
+        self._cleared = False
 
     def start(self):
         threading.Thread(target=self._send_loop, name="display-screen", daemon=True).start()
@@ -62,10 +65,25 @@ class Screen:
                 self._condition.wait_for(lambda: self._frame is not None)
                 # Only the newest frame is kept, so falling behind drops frames and does not build a backlog
                 frame, self._frame = self._frame, None
-            try:
-                self._display.image(frame)
-            except Exception:
-                logging.exception("Could not send a frame to the screen")
+            with self._write_lock:
+                # A frame picked up just before the screen was cleared must not be drawn over it
+                if self._cleared:
+                    return
+                try:
+                    self._display.image(frame)
+                except Exception:
+                    logging.exception("Could not send a frame to the screen")
+
+    def clear(self):
+        """
+        Blank the screen and stop showing frames. Waits until the screen is blank.
+        """
+        with self._condition:
+            self._frame = None
+        with self._write_lock:
+            self._cleared = True
+            self._display.fill(0)
+        logging.info("Screen cleared")
 
 
 def start_screen():

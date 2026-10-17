@@ -46,6 +46,22 @@ class HexBot:
         for line_number, text in enumerate(lines):
             self.send_command(commands.write_oled_text(line_number, text, centered=True))
 
+    def shut_down(self):
+        """
+        Bring the robot to a stop where it stands and close the serial port.
+        The emergency stop is not used, it lets every servo go limp and the robot would drop.
+        """
+        logging.info("Stopping the robot for shutdown")
+        try:
+            self.send_command(commands.stop())
+            # Stopping the walk does not stop a sway
+            self.send_command(commands.pose_angle_rotation(0, 0, 0, 0))
+            if self.serial:
+                # Make sure the stop has left before the port is closed
+                self.serial.flush()
+        finally:
+            self.close_coms()
+
     def close_coms(self):
         if self.serial:
             self.serial.close()

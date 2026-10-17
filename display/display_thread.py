@@ -15,22 +15,43 @@ FRAME_INTERVAL = 1.0 / FRAME_RATE
 SLOW_FRAME_FACTOR = 3
 SLOW_FRAME_LOG_INTERVAL_SECONDS = 10.0
 
+# How long shutting down waits for the screen to be cleared
+STOP_TIMEOUT_SECONDS = 2.0
+
+_stop_requested = threading.Event()
+_display_thread: Optional[threading.Thread] = None
+
 
 class FrameOutput(Protocol):
     """Somewhere to show frames, the real screen or the simulator."""
 
     def show(self, image: Image.Image): ...
 
+    def clear(self): ...
 
-def start_thread(display_state: DisplayState):
+
+def start_thread(display_state: DisplayState, config: dict):
     """
     Create a thread that is responsible for displaying the planet eye.
     """
     # The simulator stands in for the screen when it is on
     frame_output = start_simulator(config) or start_screen()
 
-    display_thread = threading.Thread(target=loop, args=(display_state, frame_output), name="display")
-    display_thread.start()
+    global _display_thread
+    _display_thread = threading.Thread(target=loop, args=(display_state, frame_output), name="display")
+    _display_thread.start()
+
+
+def stop():
+    """
+    End the display thread, which clears the screen on its way out. Waits for that, but not forever.
+    """
+    _stop_requested.set()
+    if _display_thread:
+        _display_thread.join(STOP_TIMEOUT_SECONDS)
+        if _display_thread.is_alive():
+            logging.warning("Display thread did not stop within %.0fs, the screen may not be cleared",
+                            STOP_TIMEOUT_SECONDS)
 
 
 def loop(display_state: DisplayState, frame_output: Optional[FrameOutput] = None):
@@ -41,7 +62,7 @@ def loop(display_state: DisplayState, frame_output: Optional[FrameOutput] = None
     last_frame_render_time = time.perf_counter()
     last_slow_frame_log_time = 0.0
 
-    while True:
+    while not _stop_requested.is_set():
         frame_start_time = time.perf_counter()
 
         time_elapsed_since_last_update = frame_start_time - last_frame_render_time
@@ -59,4 +80,9 @@ def loop(display_state: DisplayState, frame_output: Optional[FrameOutput] = None
             last_slow_frame_log_time = frame_generated_time
         sleep_time = max(0, FRAME_INTERVAL - elapsed_time)
 
-        time.sleep(sleep_time)
+        _stop_requested.wait(sleep_time)
+
+    # Otherwise the last frame stays on the screen after Kepler has stopped
+    if frame_output:
+        frame_output.clear()
+    logging.info("Display thread stopped")

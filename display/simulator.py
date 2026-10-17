@@ -59,6 +59,10 @@ PAGE = """<!doctype html>
 """
 
 
+def blank_frame() -> Image.Image:
+    return Image.new("RGB", DEFAULT_FRAME_SIZE)
+
+
 def encode_frame(image: Image.Image) -> bytes:
     jpeg = io.BytesIO()
     image.save(jpeg, format="JPEG", quality=JPEG_QUALITY)
@@ -119,6 +123,12 @@ class DisplaySimulator:
         Make this frame the one on the page.
         """
         self._show_jpeg(encode_frame(image))
+
+    def clear(self):
+        """
+        Show a blank frame, as the real screen does when Kepler stops.
+        """
+        self.show(blank_frame())
 
     def _show_jpeg(self, jpeg: bytes):
         with self._condition:
@@ -214,6 +224,13 @@ class RemoteDisplaySimulator:
         with self._condition:
             self._frame = image
             self._condition.notify()
+
+    def clear(self):
+        """
+        Show a blank frame, as the real screen does when Kepler stops. It is sent from another thread, so it can
+        be lost if the process exits straight after.
+        """
+        self.show(blank_frame())
 
     def _send_loop(self):
         connection = None

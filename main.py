@@ -11,6 +11,7 @@ from input.input_state import start_input
 import json
 import logging
 import platform
+import signal
 import subprocess
 import sys
 import threading
@@ -112,12 +113,39 @@ def main():
 
     llm_thread.start_thread(actions, llm_state, llm_provider, output_state, input_state, paced_print,
                             display_state)
-    display_thread.start_thread(display_state)
+    display_thread.start_thread(display_state, config)
     hexarth_thread.start_thread(hexarth_state, stationary_mode)
     head_thread.start_thread(head_state, stationary_mode)
     hardware_thread.start_thread()
     logging.info("Startup finished, all threads started")
     # TODO: Add memory thread
+
+    wait_for_stop_request()
+    shut_down()
+
+def wait_for_stop_request():
+    """
+    Block until Ctrl-C, the terminal closing, or the process being asked to stop.
+    """
+    stop_requested = threading.Event()
+    for stop_signal in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
+        signal.signal(stop_signal, lambda signal_number, frame: stop_requested.set())
+
+    # Waits in short steps so the signal handlers get a chance to run
+    while not stop_requested.wait(1):
+        pass
+
+def shut_down():
+    print("\nShutting down")
+    logging.info("Stop requested, shutting down")
+    # The legs first, they are what could do harm if left going
+    hexarth_thread.stop()
+    head_thread.stop()
+    display_thread.stop()
+    logging.info("Kepler stopped")
+    logging.shutdown()
+    # The other threads run forever and would keep the process alive
+    os._exit(0)
 
 
 

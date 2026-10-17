@@ -168,8 +168,11 @@ class PanTiltHat:
         pan: float | None = None,
         tilt: float | None = None,
         speed: float = 60.0,
+        stop_event: threading.Event | None = None,
     ) -> None:
         """Glide to an absolute angle at `speed` degrees/sec, blocking until done.
+
+        If `stop_event` is set during the glide, the head halts where it is.
 
         Both axes start and finish together, so the head follows a straight
         line rather than an L-shape. Duration is set by whichever axis has
@@ -189,6 +192,8 @@ class PanTiltHat:
         interval = duration / steps
 
         for step in range(1, steps + 1):
+            if stop_event is not None and stop_event.is_set():
+                return
             progress = step / steps
             self.look(
                 pan=start_pan + (end_pan - start_pan) * progress,
