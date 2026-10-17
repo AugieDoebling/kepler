@@ -135,6 +135,7 @@ def run_startup_checks(display_state: DisplayState, config: dict):
 
     # Wait at least five seconds, counting the time the checks took
     elapsed = time.perf_counter() - startup_begin
+    logging.info(f"Startup completed in {elapsed:03.04f}." )
     time.sleep(max(0, 5 - elapsed))
     
     display_state.set_eye_state(EyeState.REGULAR)
