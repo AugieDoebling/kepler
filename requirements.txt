@@ -5,6 +5,9 @@ anthropic
 google-genai
 python-dotenv
 pymongo
+sqlite-vec
+fastembed
+pytest
 pillow
 numpy
 moonshine-voice

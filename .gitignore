@@ -5,3 +5,4 @@
 /logs
 
 .env
+/memory/kepler_memory.db*
