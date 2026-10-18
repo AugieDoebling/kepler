@@ -30,12 +30,13 @@ class GeminiProvider:
         config = types.GenerateContentConfig(
             system_instruction=system_text,
             max_output_tokens=MAX_OUTPUT_TOKENS,
+            # Gemini rejects a tool with no functions in it, which a request without tools would send
             tools=[types.Tool(function_declarations=[
                 types.FunctionDeclaration(
                     name=spec.name, description=spec.description, parameters_json_schema=spec.input_schema
                 )
                 for spec in tools
-            ])],
+            ])] if tools else None,
             # Our loop runs the tools, not the SDK
             automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
         )

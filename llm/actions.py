@@ -4,6 +4,7 @@ from display.display_state import DisplayState
 from head.head_state import HeadState
 from head.pan_tilt import PAN_LIMITS, TILT_LIMITS
 from hexarth.hexarth_state import HexarthState
+from memory import memory_storage
 from ollama import Client
 from .llm_types import ActionSpec
 
@@ -154,6 +155,21 @@ class Actions:
             },
             func=self.move_head,
          ),
+         ActionSpec(
+            name="remember",
+            description="Save a fact to long-term memory. Only use this when someone asks you to remember something. Everything else said in conversation is remembered on its own.",
+            input_schema={
+               "type": "object",
+               "properties": {
+                  "fact": {
+                     "type": "string",
+                     "description": "The fact as one sentence that makes sense on its own, naming who it is about rather than saying I, you or he. For example \"Sam's dentist appointment is on Friday at 3pm\".",
+                  },
+               },
+               "required": ["fact"],
+            },
+            func=self.remember,
+         ),
       ]
       self.available_actions = {spec.name: spec for spec in specs}
 
@@ -224,3 +240,12 @@ class Actions:
          clamp(tilt_degrees, TILT_LIMITS),
          clamp(speed, HEAD_SPEED_LIMITS),
       )
+
+   def remember(self, fact: str):
+      """
+      Save a fact to long-term memory.
+
+      :param fact: The fact as one sentence that makes sense on its own, naming who it is about.
+      """
+      memory_storage.store_memory(fact)
+      return "Remembered."

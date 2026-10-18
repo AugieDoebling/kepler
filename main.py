@@ -21,6 +21,7 @@ from llm import llm_thread
 from llm.actions import Actions
 from llm.llm_provider import create_provider
 from llm.llm_state import LlmState
+from memory import memory_thread
 from output.output_state import start_output
 
 def configure_logging():
@@ -103,6 +104,8 @@ def main():
     head_state = HeadState()
     actions = Actions(display_state, hexarth_state, head_state)
     llm_provider = create_provider(config)
+    # Reading conversations for memories can use its own model, it uses the main one unless told otherwise
+    memory_provider = create_provider({"llm": config["memory_llm"]}) if "memory_llm" in config else llm_provider
     output_state = start_output(config, display_state)
     input_state = start_input(config, output_state, display_state)
     llm_state = LlmState()
@@ -120,8 +123,8 @@ def main():
     hexarth_thread.start_thread(hexarth_state, stationary_mode)
     head_thread.start_thread(head_state, stationary_mode)
     hardware_thread.start_thread()
+    memory_thread.start_thread(llm_state, memory_provider)
     logging.info("Startup finished, all threads started")
-    # TODO: Add memory thread
 
     wait_for_stop_request()
     shut_down()
@@ -159,6 +162,8 @@ def shut_down():
     # The legs first, they are what could do harm if left going
     hexarth_thread.stop()
     head_thread.stop()
+    # Saves what is left of the conversation, so it goes before anything that can wait less
+    memory_thread.stop()
     display_thread.stop()
     logging.info("Kepler stopped")
     logging.shutdown()

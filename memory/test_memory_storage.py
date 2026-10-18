@@ -456,3 +456,59 @@ def test_embeddings_are_normalized_with_expected_dimensions(real_model):
     vector = np.frombuffer(memory_storage._embed("Augie loves ramen"), dtype=np.float32)
     assert vector.shape == (memory_storage.EMBEDDING_DIMENSIONS,)
     assert np.linalg.norm(vector) == pytest.approx(1.0, abs=1e-5)
+
+
+# Updating and forgetting
+
+def test_update_changes_content_and_reindexes_words(fake_model):
+    memory_id = memory_storage.store_memory("Augie loves ramen")
+    assert memory_storage.update_memory(memory_id, "Augie loves udon")
+    assert memory_storage.recall("udon") == ["Augie loves udon"]
+    assert memory_storage.recall("ramen") == []
+
+
+def test_update_replaces_the_embedding(fake_model):
+    memory_id = memory_storage.store_memory("Augie loves ramen")
+    memory_storage.update_memory(memory_id, "The dog is named Biscuit")
+    nearest = memory_storage._connection().execute(
+        "SELECT memory_id, distance FROM memory_vectors WHERE embedding MATCH ? AND k = 1",
+        (fake_embed("The dog is named Biscuit"),),
+    ).fetchone()
+    assert nearest[0] == memory_id
+    assert nearest[1] == pytest.approx(0.0, abs=1e-5)
+
+
+def test_update_of_missing_memory_returns_false(fake_model):
+    assert memory_storage.update_memory(999, "Augie loves udon") is False
+    assert count("memories") == 0
+
+
+def test_update_rejects_empty_content(fake_model):
+    memory_id = memory_storage.store_memory("Augie loves ramen")
+    with pytest.raises(ValueError):
+        memory_storage.update_memory(memory_id, "  ")
+
+
+def test_forget_removes_memory_from_all_three_tables(fake_model):
+    memory_id, _ = store_all("Augie loves ramen", "The dog is named Biscuit")
+    assert memory_storage.forget_memory(memory_id)
+    assert count("memories") == 1
+    assert count("memories_fts") == 1
+    assert count("memory_vectors") == 1
+    assert memory_storage.recall("ramen") == []
+
+
+def test_forget_of_missing_memory_returns_false(fake_model):
+    assert memory_storage.forget_memory(999) is False
+
+
+def test_recall_with_ids_pairs_ids_with_content(fake_model):
+    ramen_id, dog_id = store_all("Augie loves ramen", "The dog is named Biscuit")
+    assert memory_storage.recall_with_ids("Biscuit") == [(dog_id, "The dog is named Biscuit")]
+
+
+def test_recall_with_ids_can_leave_memories_unmarked(fake_model):
+    memory_id = memory_storage.store_memory("Augie loves ramen")
+    memory_storage.recall_with_ids("ramen", mark_used=False)
+    last_used = memory_storage._connection().execute("SELECT last_used FROM memories WHERE id = ?", (memory_id,)).fetchone()[0]
+    assert last_used is None

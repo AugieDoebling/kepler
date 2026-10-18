@@ -103,6 +103,17 @@ def _connection() -> sqlite3.Connection:
     return _db
 
 
+def warm_up():
+    """
+    Open the database and load both models now, so the first memory stored or recalled isn't slow.
+    """
+    with _lock:
+        _connection()
+    _embed("warm up")
+    _rerank("warm up", ["warm up"])
+    logging.info("Memory storage ready")
+
+
 def _embed(text: str) -> bytes:
     """
     Turn text into a normalized vector packed the way sqlite-vec stores it.
@@ -189,12 +200,64 @@ def store_memory(content: str) -> int:
     return memory_id
 
 
+def update_memory(memory_id: int, content: str) -> bool:
+    """
+    Replace what a memory says, for when a fact has changed. Returns False if there is no memory with that id.
+    """
+    content = content.strip()
+    if not content:
+        raise ValueError("Cannot update a memory to be empty")
+
+    vector = _embed(content)
+
+    with _lock:
+        db = _connection()
+        with db:
+            # The memories_au trigger reindexes the words
+            updated = db.execute("UPDATE memories SET content = ? WHERE id = ?", (content, memory_id)).rowcount
+            if updated:
+                db.execute("UPDATE memory_vectors SET embedding = ? WHERE memory_id = ?", (vector, memory_id))
+
+    if updated:
+        logging.info("Updated memory %d: %r", memory_id, content)
+    else:
+        logging.warning("Could not update memory %d, it does not exist", memory_id)
+    return bool(updated)
+
+
+def forget_memory(memory_id: int) -> bool:
+    """
+    Delete a memory. Returns False if there is no memory with that id.
+    """
+    with _lock:
+        db = _connection()
+        with db:
+            # vec0 tables don't take part in foreign keys, so the vector has to be deleted by hand
+            db.execute("DELETE FROM memory_vectors WHERE memory_id = ?", (memory_id,))
+            # The memories_ad trigger removes the words from the index
+            deleted = db.execute("DELETE FROM memories WHERE id = ?", (memory_id,)).rowcount
+
+    if deleted:
+        logging.info("Forgot memory %d", memory_id)
+    else:
+        logging.warning("Could not forget memory %d, it does not exist", memory_id)
+    return bool(deleted)
+
+
 def recall(query: str, limit: int = 5) -> list[str]:
     """
     Find the stored memories most relevant to the query, best match first.
+    """
+    return [content for _, content in recall_with_ids(query, limit)]
+
+
+def recall_with_ids(query: str, limit: int = 5, mark_used: bool = True) -> list[tuple[int, str]]:
+    """
+    Find the stored memories most relevant to the query as (id, content) pairs, best match first.
     A search by meaning and a search by exact words gather candidates, so both "what does Augie like to eat"
     and an exact name find the right memory, then a reranker reads each candidate against the query to
     decide which are relevant.
+    mark_used is False for lookups that aren't the memory being used, like checking for related memories.
     """
     query = query.strip()
     if not query:
@@ -236,12 +299,12 @@ def recall(query: str, limit: int = 5) -> list[str]:
     if not best:
         return []
 
-    with _lock:
-        db = _connection()
-        best_ids = [memory_id for memory_id, _ in best]
-        with db:
-            db.execute(f"UPDATE memories SET last_used = datetime('now') WHERE id IN ({','.join('?' * len(best_ids))})", best_ids)
+    if mark_used:
+        with _lock:
+            db = _connection()
+            best_ids = [memory_id for memory_id, _ in best]
+            with db:
+                db.execute(f"UPDATE memories SET last_used = datetime('now') WHERE id IN ({','.join('?' * len(best_ids))})", best_ids)
 
-    memories = [content for _, content in best]
-    logging.info("Recalled %d memories for %r", len(memories), query)
-    return memories
+    logging.info("Recalled %d memories for %r", len(best), query)
+    return best
