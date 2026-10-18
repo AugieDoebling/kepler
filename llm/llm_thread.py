@@ -1,12 +1,14 @@
+import dataclasses
 import logging
 import time
 import threading
 from .actions import Actions
 from .llm_provider import LlmProvider
 from .llm_state import LlmState
-from .llm_types import LlmError
+from .llm_types import LlmError, Message
 from display.display_state import DisplayState, EyeState
 from input.input_state import InputState
+from memory import memory_storage
 from output.output_state import OutputState
 from output.paced_print import print_at_speech_speed
 from typing import Optional
@@ -16,24 +18,56 @@ MAX_TOOL_ROUNDS = 5
 
 def start_thread(actions: Actions, llmState: LlmState, provider: LlmProvider,
                  output_state: Optional[OutputState] = None, input_state: Optional[InputState] = None,
-                 paced_print: bool = False, display_state: Optional[DisplayState] = None):
+                 paced_print: bool = False, display_state: Optional[DisplayState] = None,
+                 auto_recall: bool = True):
     """
     Create a thread that is responsible for running the LLM.
     """
     llm_thread = threading.Thread(
         target=loop,
-        args=(actions, llmState, provider, output_state, input_state, paced_print, display_state),
+        args=(actions, llmState, provider, output_state, input_state, paced_print, display_state, auto_recall),
         name="llm")
     llm_thread.start()
 
+def newest_user_message(messages: list[Message]) -> Optional[Message]:
+    return next((m for m in reversed(messages) if m.role == "user"), None)
+
+def recall_memories(query: str) -> list[str]:
+    """
+    The stored memories relevant to what the user said, or none if memory storage fails.
+    """
+    recall_start = time.perf_counter()
+    try:
+        memories = memory_storage.recall(query)
+    except Exception:
+        logging.exception("Could not recall memories for %r", query)
+        return []
+    logging.info("Recalled %d memories in %.0fms", len(memories), (time.perf_counter() - recall_start) * 1000)
+    return memories
+
+def with_recalled_memories(messages: list[Message], user_message: Message, memories: list[str]) -> list[Message]:
+    """
+    A copy of the messages with the memories added to the end of the user's message, for one request only.
+    The stored conversation is left alone, so memories don't pile up in the history turn after turn.
+    """
+    if not memories:
+        return messages
+    notes = "\n".join(f"- {memory}" for memory in memories)
+    content = f"{user_message.content}\n\n(From your memory, possibly relevant:\n{notes})"
+    return [dataclasses.replace(m, content=content) if m is user_message else m for m in messages]
+
 def loop(actions: Actions, llmState: LlmState, provider: LlmProvider,
          output_state: Optional[OutputState] = None, input_state: Optional[InputState] = None,
-         paced_print: bool = False, display_state: Optional[DisplayState] = None):
-    logging.info("Starting LLM thread with provider %s", provider.name)
+         paced_print: bool = False, display_state: Optional[DisplayState] = None,
+         auto_recall: bool = True):
+    logging.info("Starting LLM thread with provider %s, automatic recall %s", provider.name, "on" if auto_recall else "off")
 
     tools = actions.get_actions()
     logging.info("Actions available to the LLM: %s", ", ".join(tool.name for tool in tools))
     tool_rounds = 0
+    # The user message memories were last recalled for and what was found, reused through the tool rounds that follow it
+    recalled_for: Optional[Message] = None
+    recalled: list[str] = []
 
     while True:
         awaiting_response, messages = llmState.get_status_and_messages()
@@ -47,10 +81,18 @@ def loop(actions: Actions, llmState: LlmState, provider: LlmProvider,
         # The display shows a loader while the robot is thinking
         if display_state:
             display_state.set_loading(True)
+        request_messages = messages
+        if auto_recall:
+            user_message = newest_user_message(messages)
+            if user_message is not None:
+                if user_message is not recalled_for:
+                    recalled_for, recalled = user_message, recall_memories(user_message.content)
+                request_messages = with_recalled_memories(messages, user_message, recalled)
+
         logging.info("Sending %d messages to %s", len(messages), provider.name)
         request_start = time.perf_counter()
         try:
-            response = provider.chat(messages, tools)
+            response = provider.chat(request_messages, tools)
         except LlmError as e:
             logging.error("LLM request failed after %.1fs (%s): %s",
                           time.perf_counter() - request_start, type(e).__name__, e)

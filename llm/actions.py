@@ -170,6 +170,21 @@ class Actions:
             },
             func=self.remember,
          ),
+         ActionSpec(
+            name="recall",
+            description="Search long-term memory for what you know about a person, event or subject. Use it when someone asks whether you remember something, or when something from an earlier conversation would help you answer.",
+            input_schema={
+               "type": "object",
+               "properties": {
+                  "query": {
+                     "type": "string",
+                     "description": "What to look for, as a short question or a few words. For example \"when is Sam's dentist appointment\" or \"Augie's favourite food\".",
+                  },
+               },
+               "required": ["query"],
+            },
+            func=self.recall,
+         ),
       ]
       self.available_actions = {spec.name: spec for spec in specs}
 
@@ -249,3 +264,14 @@ class Actions:
       """
       memory_storage.store_memory(fact)
       return "Remembered."
+
+   def recall(self, query: str):
+      """
+      Search long-term memory for what you know about a person, event or subject.
+
+      :param query: What to look for, as a short question or a few words.
+      """
+      memories = memory_storage.recall(query)
+      if not memories:
+         return "Nothing remembered about that."
+      return "\n".join(memories)

@@ -119,7 +119,7 @@ def main():
     run_startup_checks(display_state, config)
 
     llm_thread.start_thread(actions, llm_state, llm_provider, output_state, input_state, paced_print,
-                            display_state)
+                            display_state, config.get("auto_recall", True))
     hexarth_thread.start_thread(hexarth_state, stationary_mode)
     head_thread.start_thread(head_state, stationary_mode)
     hardware_thread.start_thread()
