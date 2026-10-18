@@ -1,19 +1,21 @@
 import os
 from datetime import datetime
 from display import display_thread
-from display.display_state import DisplayState
-from display.simulator import start_simulator
+from display.display_state import DisplayState, EyeState
 from head import head_thread
 from head.head_state import HeadState
+from hardware import hardware_thread
 from hexarth import hexarth_thread
 from hexarth.hexarth_state import HexarthState
 from input.input_state import start_input
 import json
 import logging
 import platform
+import signal
 import subprocess
 import sys
 import threading
+import time
 from dotenv import load_dotenv
 from llm import llm_thread
 from llm.actions import Actions
@@ -110,13 +112,58 @@ def main():
     logging.info("Speech output %s, speech input %s, paced printing %s",
                  "on" if output_state else "off", "on" if input_state else "off", "on" if paced_print else "off")
 
+    display_thread.start_thread(display_state, config)
+    run_startup_checks(display_state, config)
+
     llm_thread.start_thread(actions, llm_state, llm_provider, output_state, input_state, paced_print,
                             display_state)
-    display_thread.start_thread(display_state, start_simulator(config))
     hexarth_thread.start_thread(hexarth_state, stationary_mode)
     head_thread.start_thread(head_state, stationary_mode)
+    hardware_thread.start_thread()
     logging.info("Startup finished, all threads started")
     # TODO: Add memory thread
+
+    wait_for_stop_request()
+    shut_down()
+
+def run_startup_checks(display_state: DisplayState, config: dict):
+    startup_begin = time.perf_counter()
+
+    # TODO: Add internet access check
+    # TODO: Add hexbot comm check (if not in stationary)
+    # TODO: Add head move check (if not in stationary, move all the way up, down, right and left, then return to center)
+
+    # Wait at least five seconds, counting the time the checks took
+    elapsed = time.perf_counter() - startup_begin
+    logging.info(f"Startup completed in {elapsed:03.04f}." )
+    time.sleep(max(0, 5 - elapsed))
+    
+    display_state.set_eye_state(EyeState.REGULAR)
+
+
+def wait_for_stop_request():
+    """
+    Block until Ctrl-C, the terminal closing, or the process being asked to stop.
+    """
+    stop_requested = threading.Event()
+    for stop_signal in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
+        signal.signal(stop_signal, lambda signal_number, frame: stop_requested.set())
+
+    # Waits in short steps so the signal handlers get a chance to run
+    while not stop_requested.wait(1):
+        pass
+
+def shut_down():
+    print("\nShutting down")
+    logging.info("Stop requested, shutting down")
+    # The legs first, they are what could do harm if left going
+    hexarth_thread.stop()
+    head_thread.stop()
+    display_thread.stop()
+    logging.info("Kepler stopped")
+    logging.shutdown()
+    # The other threads run forever and would keep the process alive
+    os._exit(0)
 
 
 
