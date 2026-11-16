@@ -19,7 +19,7 @@
         "options": {}
     },
     "stationary_mode": false,
-    "display_simulator": true,
+    "display_simulator": false,
     "llm": {
         "provider": "gemini",
         "ollama_model": "gemma4:e4b",
