@@ -3,7 +3,9 @@ from head.head_state import HeadState
 from head.pan_tilt import PAN_LIMITS, TILT_LIMITS
 from hexarth.hexarth_state import HexarthState
 from memory import memory_storage
-from . import weather, web_tools
+from typing import Optional
+from . import basic_tools, robot_status, weather, web_tools
+from .timers import MAX_TIMER_MINUTES, Timers
 from .llm_types import ActionSpec
 
 SPIN_SPEED_LIMITS = (-100, 100)
@@ -20,10 +22,13 @@ def clamp(value: float, limits: tuple):
    return max(limits[0], min(limits[1], value))
 
 class Actions:
-   def __init__(self, display_state: DisplayState, hexarth_state: HexarthState, head_state: HeadState):
+   def __init__(self, display_state: DisplayState, hexarth_state: HexarthState, head_state: HeadState,
+                timers: Optional[Timers] = None):
       self.display_state = display_state
       self.hexarth_state = hexarth_state
       self.head_state = head_state
+      # Without somewhere to deliver a timer that goes off, there is no timer tool
+      self.timers = timers
 
       specs = [
          ActionSpec(
@@ -63,6 +68,42 @@ class Actions:
                "required": [],
             },
             func=weather.get_weather,
+         ),
+         ActionSpec(
+            name="get_time",
+            description="Get the current date and time. Use this whenever the answer depends on today's date, the day of the week or the time.",
+            input_schema={"type": "object", "properties": {}, "required": []},
+            func=basic_tools.get_time,
+         ),
+         ActionSpec(
+            name="calculate",
+            description="Work out a maths expression exactly. Use this for any arithmetic, percentages, tips or unit conversions rather than doing it in your head.",
+            input_schema={
+               "type": "object",
+               "properties": {
+                  "expression": {"type": "string", "description": "The expression in Python syntax, such as \"18 * 0.2\" or \"sqrt(2) * 10\". Write powers as **. Functions: sqrt, sin, cos, tan, log, log10, exp, round, abs, min, max, floor, ceil. Constants: pi, e."},
+               },
+               "required": ["expression"],
+            },
+            func=basic_tools.calculate,
+         ),
+         ActionSpec(
+            name="wikipedia_lookup",
+            description="Look up a person, place, thing or event on Wikipedia and get the opening of its article. Better than a web search for facts and background.",
+            input_schema={
+               "type": "object",
+               "properties": {
+                  "topic": {"type": "string", "description": "What to look up, such as \"Mars\" or \"Golden Gate Bridge\"."},
+               },
+               "required": ["topic"],
+            },
+            func=basic_tools.wikipedia_lookup,
+         ),
+         ActionSpec(
+            name="robot_status",
+            description="Check on your own body: temperature, power supply, Wi-Fi, memory, storage and how long you have been awake. Use it when asked how you are feeling or whether anything is wrong with you.",
+            input_schema={"type": "object", "properties": {}, "required": []},
+            func=robot_status.robot_status,
          ),
          ActionSpec(
             name="move",
@@ -190,7 +231,37 @@ class Actions:
             },
             func=self.recall,
          ),
+         ActionSpec(
+            name="forget",
+            description="Delete something from long-term memory. Only use this when someone asks you to forget something, or says something you remember is wrong.",
+            input_schema={
+               "type": "object",
+               "properties": {
+                  "description": {"type": "string", "description": "What to forget, as a short description. For example \"Sam's dentist appointment\"."},
+                  "memory_id": {"type": "integer", "description": "The number of the memory to forget. Only give this after forget has listed more than one match."},
+               },
+               "required": ["description"],
+            },
+            func=self.forget,
+         ),
       ]
+      if timers:
+         specs.append(ActionSpec(
+            name="timer",
+            description="Set, list or cancel timers and reminders. When a timer goes off you will be told, so you can tell the user.",
+            input_schema={
+               "type": "object",
+               "properties": {
+                  "action": {"type": "string", "enum": ["set", "list", "cancel"], "description": "\"set\" to start a timer, \"list\" to see the ones running, or \"cancel\" to stop one."},
+                  "reminder": {"type": "string", "description": "For \"set\", what the timer is for, such as \"take the pasta off the stove\"."},
+                  "minutes": {"type": "number", "description": f"For \"set\", how many minutes from now it goes off, at most {MAX_TIMER_MINUTES}. Give this or at, not both."},
+                  "at": {"type": "string", "description": "For \"set\", the clock time it goes off, such as \"15:30\" or \"3:30 PM\". Give this or minutes, not both."},
+                  "timer_id": {"type": "integer", "description": "For \"cancel\", the number of the timer, from \"list\". Leave it out to cancel the only one running."},
+               },
+               "required": ["action"],
+            },
+            func=timers.timer,
+         ))
       self.available_actions = {spec.name: spec for spec in specs}
 
    def get_actions(self):
@@ -280,3 +351,27 @@ class Actions:
       if not memories:
          return "Nothing remembered about that."
       return "\n".join(memories)
+
+   def forget(self, description: str, memory_id: Optional[int] = None):
+      """
+      Delete something from long-term memory. Only use this when someone asks you to forget something, or says something you remember is wrong.
+
+      :param description: What to forget, as a short description. For example "Sam's dentist appointment".
+      :param memory_id: The number of the memory to forget. Only give this after forget has listed more than one match.
+      """
+      matches = memory_storage.recall_with_ids(description, mark_used=False)
+      if memory_id is not None:
+         # Only a memory that matches the description, so a made-up number can't delete something unrelated
+         chosen = next((content for found_id, content in matches if found_id == int(memory_id)), None)
+         if chosen is None:
+            return f"Memory {memory_id} doesn't match {description!r}, nothing was forgotten."
+         memory_storage.forget_memory(int(memory_id))
+         return f"Forgotten: {chosen}"
+      if not matches:
+         return "Nothing remembered about that, so there is nothing to forget."
+      if len(matches) == 1:
+         found_id, content = matches[0]
+         memory_storage.forget_memory(found_id)
+         return f"Forgotten: {content}"
+      listing = "\n".join(f"[{found_id}] {content}" for found_id, content in matches)
+      return f"More than one memory matches. Call forget again with the memory_id of the one to forget, or ask which one is meant:\n{listing}"

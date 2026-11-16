@@ -17,7 +17,7 @@ class OllamaProvider:
                 model=self.model,
                 messages=self._to_ollama_messages(messages),
                 # Ollama has no way to forbid tool calls, but accepts a conversation with them and no tools
-                tools=[spec.func for spec in tools] if allow_tool_calls else [],
+                tools=[self._to_ollama_tool(spec) for spec in tools] if allow_tool_calls else [],
             )
         except ConnectionError as e:
             raise LlmUnavailableError(f"Could not reach Ollama: {e}") from e
@@ -38,6 +38,15 @@ class OllamaProvider:
             tool_calls=tool_calls,
             provider=self.name,
         ))
+
+    @staticmethod
+    def _to_ollama_tool(spec: ActionSpec) -> dict:
+        # The schema rather than the Python function: Ollama only reads Google style docstrings, so
+        # argument descriptions, enums and which arguments are optional would otherwise be lost
+        return {
+            "type": "function",
+            "function": {"name": spec.name, "description": spec.description, "parameters": spec.input_schema},
+        }
 
     def _to_ollama_messages(self, messages: list[Message]) -> list[ollama.Message]:
         ollama_messages = [self._to_ollama(m) for m in messages]

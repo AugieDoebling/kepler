@@ -31,6 +31,26 @@ class InputState:
             return message
 
 
+def start_keyboard_input() -> InputState:
+    """
+    Typed input only, for when speech input is off. Messages go through an input state either way, so things
+    other than the user, like timers going off, can start a turn too.
+    """
+    input_state = InputState()
+
+    def keyboard_loop():
+        while True:
+            try:
+                typed = input("--> ")
+            except EOFError:
+                logging.info("Keyboard input closed")
+                return
+            input_state.queue_message(typed)
+
+    threading.Thread(target=keyboard_loop, name="input-keyboard", daemon=True).start()
+    return input_state
+
+
 def start_input(config: dict, output_state: Optional[OutputState] = None,
                 display_state: Optional[DisplayState] = None) -> Optional[InputState]:
     """

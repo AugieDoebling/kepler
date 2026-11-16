@@ -1,4 +1,5 @@
 from datetime import date
+from typing import Optional
 
 import requests
 
@@ -47,7 +48,7 @@ def describe(code) -> str:
     return WEATHER_CODES.get(code, "unknown conditions")
 
 
-def get_weather(location: str = HOME_LOCATION, days: int = 3) -> str:
+def get_weather(location: Optional[str] = None, days: Optional[int] = None) -> str:
     """
     Get the current weather and the forecast for the next few days. Use this for any question about the weather instead of searching the web.
 

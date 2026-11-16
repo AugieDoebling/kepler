@@ -1,4 +1,5 @@
 import logging
+from typing import Optional
 
 import requests
 import trafilatura
@@ -12,7 +13,7 @@ FETCH_TIMEOUT_S = 15
 USER_AGENT = "Mozilla/5.0 (X11; Linux aarch64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36"
 
 
-def web_search(query: str, max_results: int = 3) -> str:
+def web_search(query: str, max_results: Optional[int] = None) -> str:
     """
     Performs a web search.
 

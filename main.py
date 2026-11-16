@@ -7,7 +7,7 @@ from head.head_state import HeadState
 from hardware import hardware_thread
 from hexarth import hexarth_thread
 from hexarth.hexarth_state import HexarthState
-from input.input_state import start_input
+from input.input_state import start_input, start_keyboard_input
 import json
 import logging
 import platform
@@ -21,6 +21,7 @@ from llm import llm_thread
 from llm.actions import Actions
 from llm.llm_provider import create_provider
 from llm.llm_state import LlmState
+from llm.timers import Timers
 from memory import memory_thread
 from output.output_state import start_output
 
@@ -102,18 +103,23 @@ def main():
     display_state = DisplayState()
     hexarth_state = HexarthState()
     head_state = HeadState()
-    actions = Actions(display_state, hexarth_state, head_state)
     llm_provider = create_provider(config)
     # Reading conversations for memories can use its own model, it uses the main one unless told otherwise
     memory_provider = create_provider({"llm": config["memory_llm"]}) if "memory_llm" in config else llm_provider
     output_state = start_output(config, display_state)
     input_state = start_input(config, output_state, display_state)
+    speech_input = input_state is not None
+    if not speech_input:
+        input_state = start_keyboard_input()
+    # A timer going off is queued like something the user said, so the robot speaks up without being asked
+    timers = Timers(deliver=input_state.queue_message)
+    actions = Actions(display_state, hexarth_state, head_state, timers)
     llm_state = LlmState()
 
     # Only when there is no speech to set the pace
     paced_print = config.get("print_output_at_speech_speed", False) and output_state is None
     logging.info("Speech output %s, speech input %s, paced printing %s",
-                 "on" if output_state else "off", "on" if input_state else "off", "on" if paced_print else "off")
+                 "on" if output_state else "off", "on" if speech_input else "off", "on" if paced_print else "off")
 
     display_thread.start_thread(display_state, config)
     run_startup_checks(display_state, config)
