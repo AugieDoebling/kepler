@@ -1,3 +1,4 @@
+import argparse
 import os
 from datetime import datetime
 from display import display_thread
@@ -64,6 +65,23 @@ def load_config():
     with open("kepler_config.json", "r") as f:
         return json.load(f)
 
+def parse_args():
+    parser = argparse.ArgumentParser(description="Run Kepler. Flags override kepler_config.json for this run only.")
+    parser.add_argument("--quiet", action="store_true",
+                        help="turn off speech input and output (audio_input and audio_output)")
+    parser.add_argument("--still", action="store_true",
+                        help="keep the legs and head still, movement is simulated (stationary_mode)")
+    return parser.parse_args()
+
+def apply_overrides(config: dict, args: argparse.Namespace):
+    if args.quiet:
+        config["audio_input"] = False
+        config["audio_output"] = False
+        logging.info("--quiet: audio_input and audio_output forced off")
+    if args.still:
+        config["stationary_mode"] = True
+        logging.info("--still: stationary_mode forced on")
+
 def log_startup_info():
     git_hash = subprocess.check_output(['git', 'rev-parse', '--short', 'HEAD']).decode('ascii').strip()
 
@@ -86,12 +104,15 @@ def log_config(config: dict):
     logging.info("Config: %s", json.dumps(shown))
 
 def main():
+    # Before logging, so --help and bad flags exit without touching the log file
+    args = parse_args()
     # First, so that a failure in anything after it reaches the log file
     configure_logging()
     log_uncaught_thread_exceptions()
     logging.info("Kepler starting")
     load_dotenv()
     config = load_config()
+    apply_overrides(config, args)
 
     log_startup_info()
     log_config(config)
