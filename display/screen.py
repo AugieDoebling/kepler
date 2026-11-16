@@ -1,12 +1,17 @@
-"""Shows the display frames on the real screen, a Waveshare 1.83" ST7789 LCD on SPI0.
+"""Shows the display frames on the real screens, two Waveshare 1.83" ST7789 LCDs (the eyes) on SPI0.
 
     from display.screen import start_screen
 
-    screen = start_screen()      # None if the screen could not be set up
+    screen = start_screen()      # None if the screens could not be set up
     screen.show(frame_image)     # call for every frame
 
-The screen's VCC must be on 3.3V. On 5V the backlight lights but the panel shows nothing,
-and since SPI only sends, nothing here can tell.
+Both screens always show the same frame, so they are sent it together: each has its own CS, DC and
+RST pins, and those are driven in pairs so both screens listen to the one transfer. That keeps the
+frame rate the same as for one screen.
+
+Each screen's VCC must be on 3.3V. On 5V the backlight lights but the panel shows nothing,
+and since SPI only sends, nothing here can tell. `python3 -m display.speed_sweep_test both`
+checks each screen on its own.
 """
 import logging
 import threading
@@ -18,8 +23,30 @@ HEIGHT = 284
 X_OFFSET = 0
 Y_OFFSET = 36
 
-# The panel is fine at much higher speeds, Waveshare's own example runs it at 40MHz
-BAUDRATE = 16_000_000
+# What is asked for, the SPI hardware rounds it down: 64MHz gives about 40MHz in practice, around 36 frames a
+# second, just above the display thread's 30. Both screens were clean here and failed at 128MHz, the panel's
+# own limit is about 62.5MHz. If frames come out garbled, 32MHz (about 20 frames a second) has more margin.
+BAUDRATE = 64_000_000
+
+
+class PinPair:
+    """Two pins that always move together, standing in for one pin. Only what the display library uses."""
+
+    def __init__(self, first, second):
+        self._pins = (first, second)
+
+    def switch_to_output(self, value=False):
+        for pin in self._pins:
+            pin.switch_to_output(value=value)
+
+    @property
+    def value(self):
+        return self._pins[0].value
+
+    @value.setter
+    def value(self, value):
+        for pin in self._pins:
+            pin.value = value
 
 
 class Screen:
@@ -32,13 +59,16 @@ class Screen:
         import digitalio
         from adafruit_rgb_display import st7789
 
+        def pins(left, right):
+            return PinPair(digitalio.DigitalInOut(left), digitalio.DigitalInOut(right))
+
         spi = busio.SPI(clock=board.SCK, MOSI=board.MOSI, MISO=board.MISO)
-        # Resets the panel as part of setting it up
+        # Resets both panels as part of setting them up. Don't reset again after this, it puts them back to sleep.
         self._display = st7789.ST7789(
             spi,
-            cs=digitalio.DigitalInOut(board.D5),
-            dc=digitalio.DigitalInOut(board.D24),
-            rst=digitalio.DigitalInOut(board.D26),
+            cs=pins(board.D5, board.D6),
+            dc=pins(board.D23, board.D24),
+            rst=pins(board.D27, board.D4),
             baudrate=BAUDRATE, width=WIDTH, height=HEIGHT, x_offset=X_OFFSET, y_offset=Y_OFFSET,
         )
         self._condition = threading.Condition()
