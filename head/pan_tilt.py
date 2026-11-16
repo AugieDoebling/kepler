@@ -249,10 +249,7 @@ class PanTiltHat:
         with self._lock:
             self._write(_MODE1, 0x00)
             self._set_pwm_freq(PWM_FREQ_HZ)
-            # TEMPORARY: centering disabled while debugging the tilt servo's mounting. The servos stay
-            # however the last run left them (slack, after a clean close) until the first command, and
-            # pan/tilt read 0 even though the head may not be there. Put this line back when done.
-            # self.center()
+            self.center()
 
     def _set_pwm_freq(self, freq_hz: int) -> None:
         """Set the PWM prescaler. The chip must sleep while PRE_SCALE changes."""
