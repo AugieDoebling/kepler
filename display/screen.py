@@ -7,7 +7,8 @@
 
 Both screens always show the same frame, so they are sent it together: each has its own CS, DC and
 RST pins, and those are driven in pairs so both screens listen to the one transfer. That keeps the
-frame rate the same as for one screen.
+frame rate the same as for one screen. The right eye is the left one mirrored, and the right panel
+does the flip itself, so it still costs nothing.
 
 Each screen's VCC must be on 3.3V. On 5V the backlight lights but the panel shows nothing,
 and since SPI only sends, nothing here can tell. `python3 -m display.speed_sweep_test both`
@@ -15,6 +16,7 @@ checks each screen on its own.
 """
 import logging
 import threading
+from contextlib import contextmanager
 from typing import Optional
 from PIL import Image
 
@@ -28,12 +30,19 @@ Y_OFFSET = 36
 # own limit is about 62.5MHz. If frames come out garbled, 32MHz (about 20 frames a second) has more margin.
 BAUDRATE = 64_000_000
 
+# The panel's memory access order. The library sets 0xC0, rows and columns both reversed (which is why
+# Y_OFFSET is 36: the panel's memory is 320 rows and only 284 are shown). Clearing the column bit mirrors
+# left to right. The panel's memory is exactly 240 columns wide, so nothing shifts.
+MADCTL = 0x36
+RIGHT_EYE_MADCTL = 0x80
+
 
 class PinPair:
     """Two pins that always move together, standing in for one pin. Only what the display library uses."""
 
     def __init__(self, first, second):
         self._pins = (first, second)
+        self._moving = self._pins
 
     def switch_to_output(self, value=False):
         for pin in self._pins:
@@ -45,8 +54,19 @@ class PinPair:
 
     @value.setter
     def value(self, value):
-        for pin in self._pins:
+        for pin in self._moving:
             pin.value = value
+
+    @contextmanager
+    def only_second(self):
+        """
+        Move just the second pin, the first stays where it is. For a chip select, that talks to one screen.
+        """
+        self._moving = self._pins[1:]
+        try:
+            yield
+        finally:
+            self._moving = self._pins
 
 
 class Screen:
@@ -63,14 +83,19 @@ class Screen:
             return PinPair(digitalio.DigitalInOut(left), digitalio.DigitalInOut(right))
 
         spi = busio.SPI(clock=board.SCK, MOSI=board.MOSI, MISO=board.MISO)
+        # Left screen first, right second
+        cs = pins(board.D5, board.D6)
         # Resets both panels as part of setting them up. Don't reset again after this, it puts them back to sleep.
         self._display = st7789.ST7789(
             spi,
-            cs=pins(board.D5, board.D6),
+            cs=cs,
             dc=pins(board.D23, board.D24),
             rst=pins(board.D27, board.D4),
             baudrate=BAUDRATE, width=WIDTH, height=HEIGHT, x_offset=X_OFFSET, y_offset=Y_OFFSET,
         )
+        # Only the right panel hears this, so it shows every frame mirrored from then on
+        with cs.only_second():
+            self._display.write(MADCTL, bytes([RIGHT_EYE_MADCTL]))
         self._condition = threading.Condition()
         self._frame: Optional[Image.Image] = None
         # Held while talking to the panel, so clearing it never interleaves with a frame being sent
