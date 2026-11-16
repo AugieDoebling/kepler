@@ -95,4 +95,4 @@ fi
 
 # exec so main.py gets cron's SIGTERM at shutdown directly and runs its own shut down
 log "Starting main.py"
-exec .venv/bin/python main.py </dev/null
+exec .venv/bin/python main.py "$@" </dev/null
