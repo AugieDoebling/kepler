@@ -75,7 +75,7 @@ TILT_CHANNEL = 1
 
 # Conservative soft limits in signed degrees. The servos themselves accept
 # +/-90, but the bracket and whatever is mounted on it will bind first.
-PAN_LIMITS = (-60.0, 60.0)
+PAN_LIMITS = (-50.0, 50.0)
 TILT_LIMITS = (-20.0, 0.0)
 
 # Step rate for interpolated moves. Matches the 50Hz servo update rate, so
