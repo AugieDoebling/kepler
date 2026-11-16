@@ -1,11 +1,9 @@
-import logging
-import os
 from display.display_state import DisplayState
 from head.head_state import HeadState
 from head.pan_tilt import PAN_LIMITS, TILT_LIMITS
 from hexarth.hexarth_state import HexarthState
 from memory import memory_storage
-from ollama import Client
+from . import weather, web_tools
 from .llm_types import ActionSpec
 
 SPIN_SPEED_LIMITS = (-100, 100)
@@ -27,12 +25,6 @@ class Actions:
       self.hexarth_state = hexarth_state
       self.head_state = head_state
 
-      # The web tools run on Ollama's hosted service, which needs an API key even when the model runs locally
-      ollama_api_key = os.environ.get("OLLAMA_API_KEY")
-      if not ollama_api_key:
-         logging.warning("OLLAMA_API_KEY is not set, web_search and web_fetch will fail. Add it to the .env file.")
-      web_client = Client(headers={"Authorization": f"Bearer {ollama_api_key}"} if ollama_api_key else None)
-
       specs = [
          ActionSpec(
             name="web_fetch",
@@ -44,7 +36,7 @@ class Actions:
                },
                "required": ["url"],
             },
-            func=web_client.web_fetch,
+            func=web_tools.web_fetch,
          ),
          ActionSpec(
             name="web_search",
@@ -57,7 +49,20 @@ class Actions:
                },
                "required": ["query"],
             },
-            func=web_client.web_search,
+            func=web_tools.web_search,
+         ),
+         ActionSpec(
+            name="get_weather",
+            description="Get the current weather and the forecast for the next few days. Use this for any question about the weather instead of searching the web.",
+            input_schema={
+               "type": "object",
+               "properties": {
+                  "location": {"type": "string", "description": f"The town or city, optionally followed by a comma and the state or country, such as \"Portland, Oregon\". Leave it out for home, {weather.HOME_LOCATION}."},
+                  "days": {"type": "integer", "description": f"How many days of forecast to get, counting today. Values between 1 and {weather.MAX_FORECAST_DAYS} (default: 3)."},
+               },
+               "required": [],
+            },
+            func=weather.get_weather,
          ),
          ActionSpec(
             name="move",

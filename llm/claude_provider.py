@@ -15,7 +15,7 @@ class ClaudeProvider:
         # Reads ANTHROPIC_API_KEY from the environment
         self.client = anthropic.Anthropic(timeout=REQUEST_TIMEOUT_SECONDS)
 
-    def chat(self, messages: list[Message], tools: list[ActionSpec]) -> LlmResponse:
+    def chat(self, messages: list[Message], tools: list[ActionSpec], allow_tool_calls: bool = True) -> LlmResponse:
         system_text, conversation = split_system_messages(messages)
 
         try:
@@ -28,6 +28,7 @@ class ClaudeProvider:
                     for spec in tools
                 ],
                 messages=self._to_claude(conversation),
+                **({} if allow_tool_calls or not tools else {"tool_choice": {"type": "none"}}),
             )
         except (anthropic.AuthenticationError, anthropic.PermissionDeniedError) as e:
             raise LlmAuthError(f"Claude rejected the API key, check ANTHROPIC_API_KEY: {e.message}") from e

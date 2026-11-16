@@ -21,7 +21,7 @@ def time_of_day(now: datetime) -> str:
 
 def build_boot_prompt(now: datetime) -> str:
     return (
-        f"(You have just powered on. It is {now.strftime('%A')} {time_of_day(now)}. "
+        f"(You have just powered on. It is {now.strftime('%A %d %B %Y')}, in the {time_of_day(now)}. "
         f"Greet whoever is there in a way that suits the time of day.)"
     )
 
@@ -36,7 +36,11 @@ MAX_OUTPUT_TOKENS = 1024
 class LlmProvider(Protocol):
     name: str
 
-    def chat(self, messages: list[Message], tools: list[ActionSpec]) -> LlmResponse:
+    def chat(self, messages: list[Message], tools: list[ActionSpec], allow_tool_calls: bool = True) -> LlmResponse:
+        """
+        With allow_tool_calls off the model must answer in words. The tools are still passed, because some
+        providers reject a conversation that has tool calls in it unless the tools are defined.
+        """
         ...
 
 

@@ -24,7 +24,7 @@ class GeminiProvider:
             http_options=types.HttpOptions(timeout=int(REQUEST_TIMEOUT_SECONDS * 1000)),
         )
 
-    def chat(self, messages: list[Message], tools: list[ActionSpec]) -> LlmResponse:
+    def chat(self, messages: list[Message], tools: list[ActionSpec], allow_tool_calls: bool = True) -> LlmResponse:
         system_text, conversation = split_system_messages(messages)
 
         config = types.GenerateContentConfig(
@@ -37,6 +37,9 @@ class GeminiProvider:
                 )
                 for spec in tools
             ])] if tools else None,
+            tool_config=None if allow_tool_calls or not tools else types.ToolConfig(
+                function_calling_config=types.FunctionCallingConfig(mode=types.FunctionCallingConfigMode.NONE)
+            ),
             # Our loop runs the tools, not the SDK
             automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
         )

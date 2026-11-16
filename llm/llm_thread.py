@@ -89,10 +89,14 @@ def loop(actions: Actions, llmState: LlmState, provider: LlmProvider,
                     recalled_for, recalled = user_message, recall_memories(user_message.content)
                 request_messages = with_recalled_memories(messages, user_message, recalled)
 
+        # Past the limit the model may not call tools, so it has to answer with what it has found
+        tools_allowed = tool_rounds < MAX_TOOL_ROUNDS
+        if not tools_allowed:
+            logging.warning("LLM made %d tool calling rounds in a row, asking it to answer without tools", tool_rounds)
         logging.info("Sending %d messages to %s", len(messages), provider.name)
         request_start = time.perf_counter()
         try:
-            response = provider.chat(request_messages, tools)
+            response = provider.chat(request_messages, tools, allow_tool_calls=tools_allowed)
         except LlmError as e:
             logging.error("LLM request failed after %.1fs (%s): %s",
                           time.perf_counter() - request_start, type(e).__name__, e)
@@ -111,6 +115,11 @@ def loop(actions: Actions, llmState: LlmState, provider: LlmProvider,
                          len(response.message.tool_calls))
             if not response.message.content and not response.message.tool_calls:
                 logging.warning("LLM reply was empty, nothing will be said or done")
+
+            if not tools_allowed and response.message.tool_calls:
+                # A model can still make up a tool call with no tools offered, which nothing would ever answer
+                logging.warning("LLM called tools when none were offered, ignoring them")
+                response.message.tool_calls = []
 
             llmState.add_message(response.message, require_response=False)
 
@@ -148,10 +157,8 @@ def loop(actions: Actions, llmState: LlmState, provider: LlmProvider,
 
                 # The LLM's turn is not over until it responds without calling a tool
                 tool_rounds += 1
-                if tool_rounds < MAX_TOOL_ROUNDS:
-                    llmState.set_awaiting_response(True)
-                    continue
-                logging.warning("LLM made %d tool calling rounds in a row, returning to the user", tool_rounds)
+                llmState.set_awaiting_response(True)
+                continue
 
         tool_rounds = 0
 

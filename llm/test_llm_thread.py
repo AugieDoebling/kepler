@@ -24,9 +24,11 @@ class FakeProvider:
         # Each reply is a Message to return, once they run out the loop is stopped
         self.replies = list(replies)
         self.requests = []
+        self.allowed = []
 
-    def chat(self, messages, tools):
+    def chat(self, messages, tools, allow_tool_calls=True):
         self.requests.append(list(messages))
+        self.allowed.append(allow_tool_calls)
         if not self.replies:
             raise StopLoop()
         return LlmResponse(message=self.replies.pop(0))
@@ -129,3 +131,39 @@ def test_a_failing_recall_does_not_stop_the_request(monkeypatch):
     provider = FakeProvider([])
     run(state, provider)
     assert provider.requests[0][-1].content == "When is my dentist appointment?"
+
+
+class FakeInput:
+    def wait_for_message(self):
+        return "Thanks"
+
+
+def tool_call_reply(n):
+    return Message(role="assistant", tool_calls=[ToolCall(id=f"call_{n}", name="web_search", arguments={"query": "weather"})])
+
+
+def test_answers_without_tools_after_too_many_rounds(recalls):
+    state = conversation("What's the weather tomorrow?")
+    # Keeps calling tools every time it is allowed to, then makes up one more call when it isn't
+    rounds = llm_thread.MAX_TOOL_ROUNDS
+    replies = [tool_call_reply(n) for n in range(rounds + 1)]
+    provider = FakeProvider(replies)
+    with pytest.raises(StopLoop):
+        llm_thread.loop(FakeActions(), state, provider, input_state=FakeInput())
+
+    assert provider.allowed == [True] * rounds + [False, True]
+    # The made-up call on the last request is dropped rather than left waiting for a result forever
+    _, messages = state.get_status_and_messages()
+    assert messages[-2].role == "assistant" and messages[-2].tool_calls == []
+    assert messages[-1].role == "user"
+
+
+def test_tools_allowed_again_on_the_next_turn(recalls):
+    state = conversation("What's the weather tomorrow?")
+    rounds = llm_thread.MAX_TOOL_ROUNDS
+    replies = [tool_call_reply(n) for n in range(rounds)] + [Message(role="assistant", content="Sunny.")]
+    provider = FakeProvider(replies)
+    with pytest.raises(StopLoop):
+        # The user's next message ends the test, by the provider running out of replies
+        llm_thread.loop(FakeActions(), state, provider, input_state=FakeInput())
+    assert provider.allowed == [True] * rounds + [False, True]

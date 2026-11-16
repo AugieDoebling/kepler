@@ -1,6 +1,8 @@
 aioconsole
 colorama
 ollama
+ddgs
+trafilatura
 anthropic
 google-genai
 python-dotenv

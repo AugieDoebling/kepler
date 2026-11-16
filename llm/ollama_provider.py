@@ -11,12 +11,13 @@ class OllamaProvider:
     def __init__(self, model: str):
         self.model = model
 
-    def chat(self, messages: list[Message], tools: list[ActionSpec]) -> LlmResponse:
+    def chat(self, messages: list[Message], tools: list[ActionSpec], allow_tool_calls: bool = True) -> LlmResponse:
         try:
             response: ollama.ChatResponse = ollama.chat(
                 model=self.model,
                 messages=self._to_ollama_messages(messages),
-                tools=[spec.func for spec in tools],
+                # Ollama has no way to forbid tool calls, but accepts a conversation with them and no tools
+                tools=[spec.func for spec in tools] if allow_tool_calls else [],
             )
         except ConnectionError as e:
             raise LlmUnavailableError(f"Could not reach Ollama: {e}") from e
