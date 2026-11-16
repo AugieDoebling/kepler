@@ -5,15 +5,19 @@ from display.display_state import DisplayState
 from output.output_state import OutputState
 
 class InputState:
-    def __init__(self):
+    def __init__(self, prompt: Optional[str] = None):
         self._condition = threading.Condition()
         self.input_queue = []
+        # Printed when the robot starts waiting for the user, for typed input only
+        self.prompt = prompt
+        self._last_was_typed = False
 
-    def queue_message(self, text: str):
+    def queue_message(self, text: str, typed: bool = False):
         if not text.strip():
             return
         with self._condition:
             self.input_queue.append(text.strip())
+            self._last_was_typed = typed
             self._condition.notify()
 
     def wait_for_message(self) -> str:
@@ -24,8 +28,15 @@ class InputState:
         or something said while the LLM was busy, is a single user turn.
         """
         with self._condition:
+            # Only when nothing is waiting already, something typed while the robot was busy is answered straight away
+            prompted = bool(self.prompt) and not self.input_queue
+            if prompted:
+                print(self.prompt, end="", flush=True)
             while not self.input_queue:
                 self._condition.wait()
+            if prompted and not self._last_was_typed:
+                # Something else, like a timer, started the turn, so the reply mustn't follow the prompt on its line
+                print()
             message = " ".join(self.input_queue)
             self.input_queue.clear()
             return message
@@ -36,16 +47,17 @@ def start_keyboard_input() -> InputState:
     Typed input only, for when speech input is off. Messages go through an input state either way, so things
     other than the user, like timers going off, can start a turn too.
     """
-    input_state = InputState()
+    input_state = InputState(prompt="--> ")
 
     def keyboard_loop():
         while True:
             try:
-                typed = input("--> ")
+                # No prompt here, wait_for_message shows it once the robot has finished replying
+                typed = input()
             except EOFError:
                 logging.info("Keyboard input closed")
                 return
-            input_state.queue_message(typed)
+            input_state.queue_message(typed, typed=True)
 
     threading.Thread(target=keyboard_loop, name="input-keyboard", daemon=True).start()
     return input_state
