@@ -2,6 +2,7 @@ from importlib import _bootstrap_external
 from display.display_state import DisplayState, EyeState
 from display import graphics
 import logging
+import random
 
 def calc_degrees_progressed(seconds_elapsed: float, rpm_speed: float):
    minutes_elapsed = seconds_elapsed / 60
@@ -9,7 +10,7 @@ def calc_degrees_progressed(seconds_elapsed: float, rpm_speed: float):
    return rotations * 360
 
 EYE_COLORS = {
-   EyeState.REGULAR: '#4937A2',
+   EyeState.REGULAR: '#067BC1',
    EyeState.SPEAKING: '#679436',
    EyeState.BOOTING: '#E1EFFF',
    EyeState.ERROR: '#FF6B6B',
@@ -25,32 +26,36 @@ ORBIT_EXPAND_SECONDS = 0.8
 
 class PlanetEyeScenario:
    def __init__(self):
-      self.eye_color = EYE_COLORS[EyeState.REGULAR]
+      self.eye_color = EYE_COLORS[EyeState.BOOTING]
       # The eye fades from one color to the next, the amount goes from 0 to 1 over the fade time
       self.fade_from_color = self.eye_color
       self.fade_to_color = self.eye_color
       self.fade_amount = 1.0
-      self.eye_state = EyeState.REGULAR
+      self.eye_state = EyeState.BOOTING
       # 0 is every orbit pulled in behind the iris, as when booting, and 1 is every orbit at its usual size
-      self.orbit_expansion = 1.0
+      # Starts pulled in so the planets move out from the middle once the eye has opened
+      self.orbit_expansion = 0.0
       self.planets = [
          Planet(8, 160, 8, '#B71C1C'),
          Planet(210, 190, 12, '#DA6849'),
          Planet(85, 230, 7, '#0277BD'),
       ]
       self.loader = Loader()
+      self.blinker = Blinker()
 
    def update(self, display_state: DisplayState, seconds_elapsed: float):
       for planet in self.planets:
          planet.update(seconds_elapsed)
       self.loader.update(seconds_elapsed)
+      self.blinker.update(seconds_elapsed)
 
       for planet in self.planets:
          planet.set_attention(display_state.at_attention)
-      self.loader.set_loading(display_state.is_loading)
+      # Booting counts as loading, so the loader spins until startup is done
+      self.loader.set_loading(display_state.is_loading or display_state.eye_state == EyeState.BOOTING)
 
       self.eye_state = display_state.eye_state
-      if self.eye_state == EyeState.BOOTING:
+      if self.eye_state == EyeState.BOOTING or self.blinker.is_waking():
          self.orbit_expansion = 0.0
       else:
          self.orbit_expansion = min(1.0, self.orbit_expansion + seconds_elapsed / ORBIT_EXPAND_SECONDS)
@@ -69,15 +74,21 @@ class PlanetEyeScenario:
       base_image, draw = graphics.new_frame()
 
       # The planets go down first, so the eye is drawn over them and they pass behind the iris
-      # Nothing orbits a broken eye
-      if self.eye_state != EyeState.ERROR:
+      # Nothing orbits a broken eye, and pulled all the way in the planets are hidden until they start moving out,
+      # since the iris does not cover them while the eye is shut
+      if self.eye_state != EyeState.ERROR and self.orbit_expansion > 0:
          for planet in self.planets:
             graphics.draw_planet_orbit(draw, self.get_orbit_diameter(planet), planet.position, planet.size, planet.color)
 
-      graphics.draw_eye(base_image, 35, IRIS_RADIUS, PUPIL_RADIUS, 160, color=self.eye_color)
+      blink = self.blinker.get_closed_amount()
+      graphics.draw_eye(base_image, 35, IRIS_RADIUS, PUPIL_RADIUS, 160, color=self.eye_color, blink=blink)
 
+      # The loader sits in the pupil, so it goes under the lid and blinks with the eye
       if self.loader.should_draw_loader():
-         graphics.draw_loader(draw, self.loader.radius, self.loader.width, self.loader.segments, self.loader.buffer, self.loader.position, self.loader.trans_in, self.loader.trans_out, self.loader.trans_out_roller)
+         loader = self.loader
+         graphics.draw_under_lid(base_image, lambda layer_draw: graphics.draw_loader(
+            layer_draw, loader.radius, loader.width, loader.segments, loader.buffer, loader.position,
+            loader.trans_in, loader.trans_out, loader.trans_out_roller, erase_color=(0, 0, 0, 0)), blink)
 
       return base_image
 
@@ -153,6 +164,84 @@ class Planet:
          degrees_progressed = calc_degrees_progressed(seconds_elapsed, self.rpm_speed)
          # print(f'updating planet position {self.rpm_speed:0.2f}, {self.position:0.2f}, {seconds_elapsed:0.2f}, {degrees_progressed:0.2f}')
          self.position += degrees_progressed
+
+
+# A blink sweeps the lid down, holds it shut for a moment and sweeps it back up, about 150ms in all
+BLINK_CLOSE_SECONDS = 0.06
+BLINK_SHUT_SECONDS = 0.02
+BLINK_OPEN_SECONDS = 0.07
+BLINK_SECONDS = BLINK_CLOSE_SECONDS + BLINK_SHUT_SECONDS + BLINK_OPEN_SECONDS
+# How long the eye stays open between blinks, picked at random each time
+BLINK_MIN_INTERVAL_SECONDS = 3.0
+BLINK_MAX_INTERVAL_SECONDS = 6.0
+# Some blinks are a quick double, the second one starting this long after the first has opened
+DOUBLE_BLINK_CHANCE = 0.2
+DOUBLE_BLINK_GAP_SECONDS = 0.1
+# On starting up the eye begins shut, stays shut for a moment, then opens more slowly than a blink, like waking up
+WAKE_SHUT_SECONDS = 0.3
+WAKE_OPEN_SECONDS = 0.35
+
+
+class Blinker:
+   """
+   Closes the eye now and then, at random so it does not look mechanical.
+   """
+   def __init__(self):
+      # Seconds into waking up, or None once the eye has opened for the first time
+      self.wake_time = 0.0
+      # Seconds into the current blink, or None while the eye is open between blinks
+      self.blink_time = None
+      self.seconds_until_blink = self.pick_interval()
+      # Whether another blink follows straight after this one
+      self.double_pending = False
+      # Whether the next blink to start is the second of a double, which is never itself doubled
+      self.next_is_second = False
+
+   def pick_interval(self):
+      return random.uniform(BLINK_MIN_INTERVAL_SECONDS, BLINK_MAX_INTERVAL_SECONDS)
+
+   def is_waking(self):
+      """Whether the eye is still opening for the first time since starting up."""
+      return self.wake_time is not None
+
+   def update(self, seconds_elapsed: float):
+      if self.wake_time is not None:
+         self.wake_time += seconds_elapsed
+         if self.wake_time >= WAKE_SHUT_SECONDS + WAKE_OPEN_SECONDS:
+            self.wake_time = None
+         # The wait for the first blink starts once the eye is open
+         return
+
+      if self.blink_time is not None:
+         self.blink_time += seconds_elapsed
+         if self.blink_time >= BLINK_SECONDS:
+            self.blink_time = None
+            self.next_is_second = self.double_pending
+            self.seconds_until_blink = DOUBLE_BLINK_GAP_SECONDS if self.double_pending else self.pick_interval()
+         return
+
+      self.seconds_until_blink -= seconds_elapsed
+      if self.seconds_until_blink <= 0:
+         self.blink_time = 0.0
+         self.double_pending = not self.next_is_second and random.random() < DOUBLE_BLINK_CHANCE
+         self.next_is_second = False
+
+   def get_closed_amount(self):
+      """
+      How far the lid is closed, 0 is open and 1 is shut, eased so it speeds up and slows down like a real lid.
+      """
+      if self.wake_time is not None:
+         amount = 1.0 - (self.wake_time - WAKE_SHUT_SECONDS) / WAKE_OPEN_SECONDS
+      elif self.blink_time is None:
+         return 0.0
+      elif self.blink_time < BLINK_CLOSE_SECONDS:
+         amount = self.blink_time / BLINK_CLOSE_SECONDS
+      elif self.blink_time < BLINK_CLOSE_SECONDS + BLINK_SHUT_SECONDS:
+         amount = 1.0
+      else:
+         amount = 1.0 - (self.blink_time - BLINK_CLOSE_SECONDS - BLINK_SHUT_SECONDS) / BLINK_OPEN_SECONDS
+      amount = min(1.0, max(0.0, amount))
+      return amount * amount * (3 - 2 * amount)
 
 
 class Loader:

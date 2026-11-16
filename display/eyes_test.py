@@ -5,7 +5,9 @@
 
 Goes through display/screen.py and the real display thread, so it tests what main runs. Along the way:
 
-  - the eye starts in its normal state, so the planets come out from behind the iris and orbit
+  - the eye blinks open in its pale booting color, with the planets hidden
+  - after 5 seconds booting ends, the eye fades to its normal color and the planets move out from the middle
+  - the eye blinks every few seconds, sometimes twice quickly
   - attention switches on and off every 10 seconds
   - for 10 seconds starting at 30, the eye turns green for speaking
 
@@ -20,6 +22,7 @@ from display import display_thread
 from display.display_state import DisplayState, EyeState
 from display.screen import start_screen
 
+BOOTING_SECONDS = 5
 ATTENTION_SWITCH_SECONDS = 10
 SPEAKING_START_SECONDS = 30
 SPEAKING_SECONDS = 10
@@ -44,9 +47,9 @@ def main():
         frames_sent += 1
     screen._display.image = counting_send
 
+    # A new state starts out booting, as it does in main, which changes it once startup is done
     state = DisplayState()
-    # A new state starts out booting, with the planets hidden behind the iris. main changes it after startup.
-    state.set_eye_state(EyeState.REGULAR)
+    print("   0s: booting", flush=True)
     threading.Thread(target=display_thread.loop, args=(state, screen), name="display", daemon=True).start()
 
     start = last_report = time.perf_counter()
@@ -54,6 +57,9 @@ def main():
     try:
         for second in range(1, duration + 1):
             time.sleep(1)
+            if second == BOOTING_SECONDS:
+                state.set_eye_state(EyeState.REGULAR)
+                print(f"{second:>4}s: booting done, the planets move out", flush=True)
             if second % ATTENTION_SWITCH_SECONDS == 0:
                 at_attention = (second // ATTENTION_SWITCH_SECONDS) % 2 == 1
                 state.set_attention(at_attention)
