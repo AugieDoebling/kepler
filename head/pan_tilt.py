@@ -70,13 +70,13 @@ I2C_BUS = 1
 # Which PCA9685 channel drives which axis. Waveshare's own demos are ambiguous
 # about this and mounting varies, so verify with `python head/pan_tilt.py` and
 # swap here (or pass the channels in) if the axes come out reversed.
-PAN_CHANNEL = 1
-TILT_CHANNEL = 0
+PAN_CHANNEL = 0
+TILT_CHANNEL = 1
 
 # Conservative soft limits in signed degrees. The servos themselves accept
 # +/-90, but the bracket and whatever is mounted on it will bind first.
 PAN_LIMITS = (-60.0, 60.0)
-TILT_LIMITS = (-45.0, 0.0)
+TILT_LIMITS = (-20.0, 0.0)
 
 # Step rate for interpolated moves. Matches the 50Hz servo update rate, so
 # there is no point going finer.
@@ -249,7 +249,10 @@ class PanTiltHat:
         with self._lock:
             self._write(_MODE1, 0x00)
             self._set_pwm_freq(PWM_FREQ_HZ)
-            self.center()
+            # TEMPORARY: centering disabled while debugging the tilt servo's mounting. The servos stay
+            # however the last run left them (slack, after a clean close) until the first command, and
+            # pan/tilt read 0 even though the head may not be there. Put this line back when done.
+            # self.center()
 
     def _set_pwm_freq(self, freq_hz: int) -> None:
         """Set the PWM prescaler. The chip must sleep while PRE_SCALE changes."""
